@@ -36,6 +36,7 @@ type Operation struct {
 	SecondsUntilTimeout  int      `json:"SecondsUntilTimeout"`
 	ContinueAfterTimeout bool     `json:"ContinueAfterTimeout"`
 	Arguments            []string `json:"Arguments"`
+	CaptureStdOut        bool     `json:"CaptureStdOut"`
 }
 
 // The Job type contains information for a single job.
