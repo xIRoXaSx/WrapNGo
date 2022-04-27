@@ -23,18 +23,20 @@ var config = &Config{
 }
 
 type GeneralSettings struct {
-	BinaryPath string `json:"BinaryPath"`
-	Debug      bool   `json:"Debug"`
+	BinaryPath            string `json:"BinaryPath"`
+	Debug                 bool   `json:"Debug"`
+	CaseSensitiveJobNames bool   `json:"CaseSensitiveJobNames"`
 }
 
 // The Operation type contains information for a single Job operation.
 // Each Job can contain up to 2 Jobs (Pre- and Post-operation).
 type Operation struct {
 	Enabled              bool     `json:"Enabled"`
+	AllowParallelRun     bool     `json:"AllowParallelRun"`
 	FailIfNotSuccessful  bool     `json:"FailIfNotSuccessful"`
-	Command              string   `json:"Command"`
 	SecondsUntilTimeout  int      `json:"SecondsUntilTimeout"`
 	ContinueAfterTimeout bool     `json:"ContinueAfterTimeout"`
+	Command              string   `json:"Command"`
 	Arguments            []string `json:"Arguments"`
 	CaptureStdOut        bool     `json:"CaptureStdOut"`
 }
@@ -42,14 +44,15 @@ type Operation struct {
 // The Job type contains information for a single job.
 // The Config contains n Jobs.
 type Job struct {
-	Name          string     `json:"Name"`
-	Source        string     `json:"Source"`
-	Destination   string     `json:"Destination"`
-	Action        string     `json:"Action"`
-	FileTypes     []string   `json:"FileTypes"`
-	StartFlags    []string   `json:"StartFlags"`
-	PreOperation  *Operation `json:"PreOperation"`
-	PostOperation *Operation `json:"PostOperation"`
+	Name                  string     `json:"Name"`
+	Source                string     `json:"Source"`
+	Destination           string     `json:"Destination"`
+	Action                string     `json:"Action"`
+	FileTypes             []string   `json:"FileTypes"`
+	StartFlags            []string   `json:"StartFlags"`
+	StopIfOperationFailed bool       `json:"StopIfOperationFailed"`
+	PreOperation          *Operation `json:"PreOperation"`
+	PostOperation         *Operation `json:"PostOperation"`
 }
 
 // The Config type contains all the information used inside this project.

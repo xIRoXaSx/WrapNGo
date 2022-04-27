@@ -4,6 +4,7 @@ import (
 	"CloudTransferTasks/config"
 	"log"
 	"os"
+	"strings"
 )
 
 func init() {
@@ -26,5 +27,31 @@ func init() {
 }
 
 func main() {
-
+	args := os.Args
+	if len(args) > 1 {
+		conf := config.Current()
+		if conf.GeneralSettings.CaseSensitiveJobNames {
+			for _, j := range conf.Jobs {
+				if j.Name != args[1] {
+					continue
+				}
+				err := RunJob(j)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+			}
+			return
+		}
+		for _, j := range conf.Jobs {
+			if strings.ToLower(j.Name) != strings.ToLower(args[1]) {
+				continue
+			}
+			err := RunJob(j)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+		}
+	}
 }
