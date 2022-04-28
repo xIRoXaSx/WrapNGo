@@ -147,8 +147,21 @@ func runJob(t config.Task, itrChan chan os.Signal) (err error) {
 
 // replacePlaceholders checks the given strings for placeholders and replaces them accordingly.
 func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
+	dateFormat := config.Current().GeneralSettings.DateFormat
 	fElem := reflect.ValueOf(&t).Elem()
 	for _, v := range values {
+		// Check for date placeholders.
+		if dateFormat != "" {
+			reg, err := regexp.Compile(fmt.Sprintf("(?i)(%sDate%s)", config.PlaceholderChar, config.PlaceholderChar))
+			if err != nil {
+				continue
+			}
+			found := reg.FindStringSubmatch(v)
+			if len(found) > 0 {
+				v = strings.Replace(v, found[1], time.Now().Format(dateFormat), -1)
+			}
+		}
+
 		for i := 0; i < fElem.NumField(); i++ {
 			fName := fElem.Type().Field(i).Name
 			fVal := fmt.Sprintf("%s", fElem.Field(i))
@@ -157,8 +170,8 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 				continue
 			}
 			found := reg.FindStringSubmatch(v)
-			for _, match := range found {
-				replaced = append(replaced, strings.Replace(v, match, fVal, -1))
+			if len(found) > 0 {
+				replaced = append(replaced, strings.Replace(v, found[1], fVal, -1))
 			}
 		}
 	}
