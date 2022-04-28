@@ -1,7 +1,7 @@
 package main
 
 import (
-	config "CloudTransferTasks/config"
+	"CloudTransferTasks/config"
 	"bytes"
 	"fmt"
 	"log"
@@ -31,14 +31,14 @@ func RunTask(t config.Task) (err error) {
 	if t.PreOperation != nil && t.PreOperation.Enabled {
 		if t.PreOperation.AllowParallelRun {
 			go func() {
-				err = runOperation(t.PreOperation, t.Name, jobPreOperation)
+				err = runOperation(t.PreOperation, t, jobPreOperation)
 				if err != nil {
 					log.Println(err)
 				}
 				opItr <- err
 			}()
 		} else {
-			err = runOperation(t.PreOperation, t.Name, jobPreOperation)
+			err = runOperation(t.PreOperation, t, jobPreOperation)
 			if err != nil {
 				log.Println(err)
 				if t.StopIfOperationFailed {
@@ -59,7 +59,7 @@ func RunTask(t config.Task) (err error) {
 
 	// Execute the PostOperation if available.
 	if t.PostOperation != nil && t.PostOperation.Enabled {
-		err = runOperation(t.PostOperation, t.Name, jobPostOperation)
+		err = runOperation(t.PostOperation, t, jobPostOperation)
 		if err != nil {
 			log.Println(err)
 			return
@@ -76,7 +76,7 @@ func runJob(t config.Task, itrChan chan os.Signal) (err error) {
 	job := make(chan error)
 	args := make([]string, 1)
 	args[0] = t.Action
-	args = append(args, t.Source, t.Destination)
+	args = append(args, replacePlaceholders(t, t.Source)[0], replacePlaceholders(t, t.Destination)[0])
 
 	// Since flags can contain spaces, separate them
 	// and append them to the args slice.
@@ -103,6 +103,8 @@ func runJob(t config.Task, itrChan chan os.Signal) (err error) {
 		args = append(args, fmt.Sprintf("{%v}", strings.Join(ft, ",")))
 	}
 
+	args = replacePlaceholders(t, args...)
+	fmt.Println(args)
 	buf := &bytes.Buffer{}
 	c := exec.Command(config.Current().GeneralSettings.BinaryPath, args...)
 	c.Stdout = os.Stdout
@@ -138,10 +140,10 @@ func runJob(t config.Task, itrChan chan os.Signal) (err error) {
 	case err = <-job:
 	}
 	if err != nil {
-		return fmt.Errorf("%s: %v: %v", t.Name, ErrTaskFailed, buf)
+		return fmt.Errorf("%s: %v: %v", t.Name, ErrJobFailed, buf)
 	}
 
-	log.Printf("Task \"%s\" completed successfully", t.Name)
+	log.Printf("Job \"%s\" completed successfully", t.Name)
 	return
 }
 
@@ -162,6 +164,7 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 			}
 		}
 
+		// Dynamic placeholders.
 		for i := 0; i < fElem.NumField(); i++ {
 			fName := fElem.Type().Field(i).Name
 			fVal := fmt.Sprintf("%s", fElem.Field(i))
@@ -171,17 +174,18 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 			}
 			found := reg.FindStringSubmatch(v)
 			if len(found) > 0 {
-				replaced = append(replaced, strings.Replace(v, found[1], fVal, -1))
+				v = strings.Replace(v, found[1], fVal, -1)
 			}
 		}
+		replaced = append(replaced, v)
 	}
 	return
 }
 
 // runOperation runs the given operation and blocks until it has finished.
-func runOperation(o *config.Operation, jobName, oType string) (err error) {
-	log.Printf("%s: Executing %s\n", jobName, oType)
-	c := exec.Command(o.Command, o.Arguments...)
+func runOperation(o *config.Operation, t config.Task, oType string) (err error) {
+	log.Printf("%s: Executing %s\n", t.Name, oType)
+	c := exec.Command(o.Command, replacePlaceholders(t, o.Arguments...)...)
 	if o.CaptureStdOut {
 		c.Stdout = os.Stdout
 	}
@@ -206,13 +210,13 @@ func runOperation(o *config.Operation, jobName, oType string) (err error) {
 	// If timeout reached, stop the command execution.
 	case <-timeout:
 		err = c.Process.Kill()
-		return fmt.Errorf("%s: %v", jobName, ErrTimeout)
+		return fmt.Errorf("%s: %v", t.Name, ErrTimeout)
 	// Command finished.
 	case err = <-done:
 	}
 
 	if err != nil {
-		return fmt.Errorf("%s: executed operation caught an error: %v", jobName, err)
+		return fmt.Errorf("%s: executed operation caught an error: %v", t.Name, err)
 	}
 	return
 }

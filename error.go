@@ -3,6 +3,6 @@ package main
 const (
 	ErrUserInterrupt      = "interrupt received"
 	ErrOperationInterrupt = "operation failed"
-	ErrTaskFailed         = "task failed"
+	ErrJobFailed          = "job failed"
 	ErrTimeout            = "timeout reached"
 )
