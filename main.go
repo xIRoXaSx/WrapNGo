@@ -2,9 +2,11 @@ package main
 
 import (
 	"CloudTransferTasks/config"
+	"fmt"
 	"log"
 	"os"
 	"strings"
+	"sync"
 )
 
 func init() {
@@ -30,28 +32,37 @@ func main() {
 	args := os.Args
 	if len(args) > 1 {
 		conf := config.Current()
+		tasks := make([]config.Task, 0)
 		if conf.GeneralSettings.CaseSensitiveJobNames {
-			for _, j := range conf.Jobs {
-				if j.Name != args[1] {
+			for _, t := range conf.Tasks {
+				if t.Name != args[1] {
 					continue
 				}
-				err := RunJob(j)
+				tasks = append(tasks, t)
+			}
+		} else {
+			for _, t := range conf.Tasks {
+				if strings.ToLower(t.Name) != strings.ToLower(args[1]) {
+					continue
+				}
+				tasks = append(tasks, t)
+			}
+		}
+
+		// Run each task in a separate goroutine to parallelize.
+		wg := sync.WaitGroup{}
+		for _, t := range tasks {
+			wg.Add(1)
+			fmt.Printf("Starting Task \"%s\" in the background.\n", t.Name)
+			task := t
+			go func() {
+				defer wg.Done()
+				err := RunTask(task)
 				if err != nil {
 					log.Println(err)
-					continue
 				}
-			}
-			return
+			}()
 		}
-		for _, j := range conf.Jobs {
-			if strings.ToLower(j.Name) != strings.ToLower(args[1]) {
-				continue
-			}
-			err := RunJob(j)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-		}
+		wg.Wait()
 	}
 }

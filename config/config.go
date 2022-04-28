@@ -13,12 +13,12 @@ import (
 const (
 	fileName        = "config.yml"
 	dirName         = "CloudTransferTasks"
-	placeholderChar = "%"
+	PlaceholderChar = "%"
 )
 
 var config = &Config{
 	GeneralSettings: GeneralSettings{},
-	Jobs:            []Job{},
+	Tasks:           []Task{},
 	Mutex:           &sync.Mutex{},
 }
 
@@ -26,10 +26,11 @@ type GeneralSettings struct {
 	BinaryPath            string `json:"BinaryPath"`
 	Debug                 bool   `json:"Debug"`
 	CaseSensitiveJobNames bool   `json:"CaseSensitiveJobNames"`
+	DateFormat            string `json:"DateFormat"`
 }
 
-// The Operation type contains information for a single Job operation.
-// Each Job can contain up to 2 Jobs (Pre- and Post-operation).
+// The Operation type contains information for a single Task operation.
+// Each Task can contain up to 2 Tasks (Pre- and Post-operation).
 type Operation struct {
 	Enabled              bool     `json:"Enabled"`
 	AllowParallelRun     bool     `json:"AllowParallelRun"`
@@ -41,15 +42,17 @@ type Operation struct {
 	CaptureStdOut        bool     `json:"CaptureStdOut"`
 }
 
-// The Job type contains information for a single job.
-// The Config contains n Jobs.
-type Job struct {
+// The Task type contains information for a single job.
+// The Config contains n Tasks.
+type Task struct {
 	Name                  string     `json:"Name"`
 	Source                string     `json:"Source"`
 	Destination           string     `json:"Destination"`
 	Action                string     `json:"Action"`
+	FileTypesAsBlacklist  bool       `json:"FileTypesAsBlacklist"`
 	FileTypes             []string   `json:"FileTypes"`
 	StartFlags            []string   `json:"StartFlags"`
+	StopIfTaskFailed      bool       `json:"StopIfTaskFailed"`
 	StopIfOperationFailed bool       `json:"StopIfOperationFailed"`
 	PreOperation          *Operation `json:"PreOperation"`
 	PostOperation         *Operation `json:"PostOperation"`
@@ -58,7 +61,7 @@ type Job struct {
 // The Config type contains all the information used inside this project.
 type Config struct {
 	GeneralSettings GeneralSettings `json:"GeneralSettings"`
-	Jobs            []Job           `json:"Jobs"`
+	Tasks           []Task          `json:"Tasks"`
 	*sync.Mutex
 }
 
@@ -66,23 +69,24 @@ type Config struct {
 func defaultConfig() *Config {
 	return &Config{
 		GeneralSettings: GeneralSettings{
-			BinaryPath: "/path/to/rclone",
-			Debug:      false,
+			BinaryPath: "rclone",
+			DateFormat: "YYYY-MM-DD_hh-mm-ss",
 		},
-		Jobs: []Job{
+		Tasks: []Task{
 			{
-				Name:        "ShortNameOfTask",
-				Source:      "source",
-				Destination: "SomeDrive:Destination/Path",
-				Action:      "copy",
-				FileTypes:   []string{"*.png", "*.jpg", "*.gif"},
-				StartFlags:  []string{"-P", "--retries 5", "--transfers 3"},
+				Name:                  "ShortNameOfTask",
+				Source:                "source",
+				Destination:           "SomeDrive:Destination/Path",
+				Action:                "copy",
+				StopIfTaskFailed:      true,
+				StopIfOperationFailed: true,
+				FileTypes:             []string{"*.png", "*.jpg", "*.gif"},
+				StartFlags:            []string{"-P", "--retries 5", "--transfers 3"},
 				PreOperation: &Operation{
-					Enabled:              false,
-					FailIfNotSuccessful:  true,
-					Command:              "Call-Another-Program-Or-Script-Before-Rclone-Ran",
-					SecondsUntilTimeout:  3,
-					ContinueAfterTimeout: false,
+					FailIfNotSuccessful: true,
+					CaptureStdOut:       true,
+					Command:             "Call-Another-Program-Or-Script-Before-Rclone-Ran",
+					SecondsUntilTimeout: 3,
 					Arguments: []string{
 						"Description: Arguments can be used inside your called script / application.",
 						"StartedAt: " + formatPlaceholder("Date"),
@@ -92,11 +96,10 @@ func defaultConfig() *Config {
 					},
 				},
 				PostOperation: &Operation{
-					Enabled:              false,
-					FailIfNotSuccessful:  true,
-					Command:              "Call-Another-Program-Or-Script-After-Rclone-Ran",
-					SecondsUntilTimeout:  3,
-					ContinueAfterTimeout: false,
+					FailIfNotSuccessful: true,
+					CaptureStdOut:       true,
+					Command:             "Call-Another-Program-Or-Script-After-Rclone-Ran",
+					SecondsUntilTimeout: 3,
 					Arguments: []string{
 						"Description: Arguments can be used inside your called script / application.",
 						"StartedAt: " + formatPlaceholder("Date"),
@@ -193,7 +196,7 @@ func configDirPath() (dir string) {
 
 // formatPlaceholder formats the given key to a placeholder.
 func formatPlaceholder(key string) string {
-	return placeholderChar + key + placeholderChar
+	return PlaceholderChar + key + PlaceholderChar
 }
 
 func Current() *Config {
