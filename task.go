@@ -104,7 +104,6 @@ func runJob(t config.Task, itrChan chan os.Signal) (err error) {
 	}
 
 	args = replacePlaceholders(t, args...)
-	fmt.Println(args)
 	buf := &bytes.Buffer{}
 	c := exec.Command(config.Current().GeneralSettings.BinaryPath, args...)
 	c.Stdout = os.Stdout
@@ -160,19 +159,37 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 			}
 			found := reg.FindStringSubmatch(v)
 			if len(found) > 0 {
-				v = strings.Replace(v, found[1], time.Now().Format(dateFormat), -1)
+				v, err = parseDate(dateFormat)
 			}
+		}
+
+		// Check for single date placeholders (e.g %Date(YYYY-MM-DD)%)
+		dtFmt := regexp.QuoteMeta("(") + "(.*)" + regexp.QuoteMeta(")")
+		reg, err := regexp.Compile(
+			fmt.Sprintf("(?i)(%sDate%s%s)", config.PlaceholderChar, dtFmt, config.PlaceholderChar),
+		)
+		if err != nil {
+			continue
+		}
+		found := reg.FindStringSubmatch(v)
+		if len(found) > 0 {
+			var parsed string
+			parsed, err = parseDate(found[2])
+			if err != nil {
+				return
+			}
+			v = strings.ReplaceAll(v, found[1], parsed)
 		}
 
 		// Dynamic placeholders.
 		for i := 0; i < fElem.NumField(); i++ {
 			fName := fElem.Type().Field(i).Name
 			fVal := fmt.Sprintf("%s", fElem.Field(i))
-			reg, err := regexp.Compile(fmt.Sprintf("(?i)(%s%s%s)", config.PlaceholderChar, fName, config.PlaceholderChar))
+			reg, err = regexp.Compile(fmt.Sprintf("(?i)(%s%s%s)", config.PlaceholderChar, fName, config.PlaceholderChar))
 			if err != nil {
 				continue
 			}
-			found := reg.FindStringSubmatch(v)
+			found = reg.FindStringSubmatch(v)
 			if len(found) > 0 {
 				v = strings.Replace(v, found[1], fVal, -1)
 			}

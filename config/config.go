@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	fileName        = "config.yml"
+	fileName        = "config.json"
 	dirName         = "CloudTransferTasks"
 	PlaceholderChar = "%"
 )
