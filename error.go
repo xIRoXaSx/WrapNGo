@@ -1,8 +1,9 @@
 package main
 
 const (
-	ErrUserInterrupt      = "interrupt received"
-	ErrOperationInterrupt = "operation failed"
-	ErrJobFailed          = "job failed"
-	ErrTimeout            = "timeout reached"
+	ErrUserInterrupt     = "interrupt received"
+	ErrOperationFailed   = "operation failed"
+	ErrJobFailed         = "job failed"
+	ErrTimeout           = "timeout reached"
+	ErrArchAlreadyExists = "archive already exists"
 )

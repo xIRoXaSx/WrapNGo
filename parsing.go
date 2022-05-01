@@ -7,9 +7,8 @@ import (
 	"time"
 )
 
-func parseDate(format string) (date string, err error) {
+func parseDate(tm time.Time, format string) (date string, err error) {
 	date = format
-	tm := time.Now()
 	formats := map[string]string{
 		"YYYY": fmt.Sprintf("%d", tm.Year()),
 		"YYY":  fmt.Sprintf("%d", tm.YearDay()),

@@ -45,17 +45,20 @@ type Operation struct {
 // The Task type contains information for a single job.
 // The Config contains n Tasks.
 type Task struct {
-	Name                  string     `json:"Name"`
-	Source                string     `json:"Source"`
-	Destination           string     `json:"Destination"`
-	Action                string     `json:"Action"`
-	FileTypesAsBlacklist  bool       `json:"FileTypesAsBlacklist"`
-	FileTypes             []string   `json:"FileTypes"`
-	StartFlags            []string   `json:"StartFlags"`
-	StopIfTaskFailed      bool       `json:"StopIfTaskFailed"`
-	StopIfOperationFailed bool       `json:"StopIfOperationFailed"`
-	PreOperation          *Operation `json:"PreOperation"`
-	PostOperation         *Operation `json:"PostOperation"`
+	Name                    string     `json:"Name"`
+	Source                  string     `json:"Source"`
+	Destination             string     `json:"Destination"`
+	Action                  string     `json:"Action"`
+	FileTypesAsBlacklist    bool       `json:"FileTypesAsBlacklist"`
+	FileTypes               []string   `json:"FileTypes"`
+	StartFlags              []string   `json:"StartFlags"`
+	StopIfJobFailed         bool       `json:"StopIfJobFailed"`
+	StopIfOperationFailed   bool       `json:"StopIfOperationFailed"`
+	CompressToTarBeforeHand bool       `json:"CompressToTarBeforeHand"`
+	OverwriteCompressedTar  bool       `json:"OverwriteCompressedTar"`
+	RemoveAfterJobCompletes bool       `json:"RemoveAfterJobCompletes"`
+	PreOperation            *Operation `json:"PreOperation"`
+	PostOperation           *Operation `json:"PostOperation"`
 }
 
 // The Config type contains all the information used inside this project.
@@ -78,7 +81,7 @@ func defaultConfig() *Config {
 				Source:                "source",
 				Destination:           "SomeDrive:Destination/Path",
 				Action:                "copy",
-				StopIfTaskFailed:      true,
+				StopIfJobFailed:       true,
 				StopIfOperationFailed: true,
 				FileTypes:             []string{"*.png", "*.jpg", "*.gif"},
 				StartFlags:            []string{"-P", "--retries 5", "--transfers 3"},
@@ -166,9 +169,6 @@ func LoadConfig() (err error) {
 	config.Lock()
 	err = json.Unmarshal(b, &config)
 	config.Unlock()
-	if err != nil {
-		return
-	}
 	return
 }
 

@@ -31,16 +31,11 @@ func RunTask(t config.Task) (err error) {
 	if t.PreOperation != nil && t.PreOperation.Enabled {
 		if t.PreOperation.AllowParallelRun {
 			go func() {
-				err = runOperation(t.PreOperation, t, jobPreOperation)
-				if err != nil {
-					log.Println(err)
-				}
-				opItr <- err
+				opItr <- runOperation(t.PreOperation, usrItr, t, jobPreOperation)
 			}()
 		} else {
-			err = runOperation(t.PreOperation, t, jobPreOperation)
+			err = runOperation(t.PreOperation, usrItr, t, jobPreOperation)
 			if err != nil {
-				log.Println(err)
 				if t.StopIfOperationFailed {
 					return
 				}
@@ -49,33 +44,42 @@ func RunTask(t config.Task) (err error) {
 	}
 
 	// Run the defined job.
-	err = runJob(t, usrItr)
+	err = runJob(t, usrItr, opItr)
 	if err != nil {
-		log.Println(err)
-		if t.StopIfTaskFailed {
+		if t.StopIfJobFailed {
 			return
 		}
+		log.Println(err)
+		err = nil
 	}
 
 	// Execute the PostOperation if available.
 	if t.PostOperation != nil && t.PostOperation.Enabled {
-		err = runOperation(t.PostOperation, t, jobPostOperation)
+		err = runOperation(t.PostOperation, usrItr, t, jobPostOperation)
 		if err != nil {
-			log.Println(err)
-			return
+			return fmt.Errorf("%s: %s: %v", t.Name, jobPostOperation, err)
 		}
 		log.Printf("%s: %s finished\n", t.Name, jobPostOperation)
 	}
-	log.Printf("%s: Task %s finished\n", t.Name, jobPostOperation)
+	log.Printf("%s: Task finished\n", t.Name)
 	return
 }
 
-// runJob executes the actual rclone action.
-func runJob(t config.Task, itrChan chan os.Signal) (err error) {
-	opItr := make(chan error, 1)
+// runJob executes the actual binary action.
+func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error) {
 	job := make(chan error)
 	args := make([]string, 1)
 	args[0] = t.Action
+
+	// Compress source if enabled.
+	if t.CompressToTarBeforeHand {
+		var path string
+		path, err = Compress(t.Source, t.OverwriteCompressedTar)
+		if err != nil && t.StopIfJobFailed {
+			return
+		}
+		t.Source = path
+	}
 	args = append(args, replacePlaceholders(t, t.Source)[0], replacePlaceholders(t, t.Destination)[0])
 
 	// Since flags can contain spaces, separate them
@@ -110,7 +114,7 @@ func runJob(t config.Task, itrChan chan os.Signal) (err error) {
 	c.Stderr = buf
 	err = c.Start()
 	if err != nil {
-		log.Println(err)
+		log.Println(fmt.Sprintf("%s: %v", t.Name, err))
 	}
 
 	go func() {
@@ -120,24 +124,33 @@ func runJob(t config.Task, itrChan chan os.Signal) (err error) {
 
 	select {
 	case <-itrChan:
-		log.Println(ErrUserInterrupt)
 		err = c.Process.Kill()
 		if err != nil {
 			log.Println(err)
 		}
-		return
+		return fmt.Errorf("%s: %v", t.Name, ErrUserInterrupt)
 	case <-opItr:
-		log.Println(ErrOperationInterrupt)
 		err = c.Process.Kill()
 		if err != nil {
 			log.Println(err)
 		}
-
-		if t.StopIfOperationFailed {
-			return
+		if t.RemoveAfterJobCompletes {
+			err = os.Remove(t.Source)
+			if err != nil {
+				log.Println(err)
+			}
 		}
+		return fmt.Errorf("%s: %v", t.Name, ErrOperationFailed)
 	case err = <-job:
 	}
+
+	if t.RemoveAfterJobCompletes {
+		err = os.Remove(t.Source)
+		if err != nil {
+			log.Println(err)
+		}
+	}
+
 	if err != nil {
 		return fmt.Errorf("%s: %v: %v", t.Name, ErrJobFailed, buf)
 	}
@@ -146,8 +159,54 @@ func runJob(t config.Task, itrChan chan os.Signal) (err error) {
 	return
 }
 
+// runOperation runs the given operation and blocks until it has finished.
+func runOperation(o *config.Operation, itrChan chan os.Signal, t config.Task, oType string) (err error) {
+	log.Printf("%s: Executing %s\n", t.Name, oType)
+	c := exec.Command(o.Command, replacePlaceholders(t, o.Arguments...)...)
+	if o.CaptureStdOut {
+		c.Stdout = os.Stdout
+	}
+
+	done := make(chan error, 1)
+	err = c.Start()
+	if err != nil {
+		log.Println(fmt.Sprintf("%s: %s: %v", t.Name, oType, err))
+		return
+	}
+
+	go func() {
+		done <- c.Wait()
+	}()
+
+	var timeout <-chan time.Time
+	if o.SecondsUntilTimeout > 0 {
+		timeout = time.After(time.Duration(o.SecondsUntilTimeout) * time.Second)
+	}
+
+	select {
+	// If timeout reached, stop the command execution.
+	case <-timeout:
+		err = c.Process.Kill()
+		return fmt.Errorf("%s: %s - %v", t.Name, oType, ErrTimeout)
+
+	// User has interrupted, stop command execution.
+	case <-itrChan:
+		err = c.Process.Kill()
+		return fmt.Errorf("%s: %s - %v", t.Name, oType, ErrUserInterrupt)
+
+	// Command finished.
+	case err = <-done:
+	}
+
+	if err != nil {
+		return fmt.Errorf("%s: %s: executed operation caught an error: %v", t.Name, oType, err)
+	}
+	return
+}
+
 // replacePlaceholders checks the given strings for placeholders and replaces them accordingly.
 func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
+	tm := time.Now()
 	dateFormat := config.Current().GeneralSettings.DateFormat
 	fElem := reflect.ValueOf(&t).Elem()
 	for _, v := range values {
@@ -159,7 +218,7 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 			}
 			found := reg.FindStringSubmatch(v)
 			if len(found) > 0 {
-				v, err = parseDate(dateFormat)
+				v, err = parseDate(tm, dateFormat)
 			}
 		}
 
@@ -174,7 +233,7 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 		found := reg.FindStringSubmatch(v)
 		if len(found) > 0 {
 			var parsed string
-			parsed, err = parseDate(found[2])
+			parsed, err = parseDate(tm, found[2])
 			if err != nil {
 				return
 			}
@@ -195,45 +254,6 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 			}
 		}
 		replaced = append(replaced, v)
-	}
-	return
-}
-
-// runOperation runs the given operation and blocks until it has finished.
-func runOperation(o *config.Operation, t config.Task, oType string) (err error) {
-	log.Printf("%s: Executing %s\n", t.Name, oType)
-	c := exec.Command(o.Command, replacePlaceholders(t, o.Arguments...)...)
-	if o.CaptureStdOut {
-		c.Stdout = os.Stdout
-	}
-
-	done := make(chan error, 1)
-	err = c.Start()
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	go func() {
-		done <- c.Wait()
-	}()
-
-	var timeout <-chan time.Time
-	if o.SecondsUntilTimeout > 0 {
-		timeout = time.After(time.Duration(o.SecondsUntilTimeout) * time.Second)
-	}
-
-	select {
-	// If timeout reached, stop the command execution.
-	case <-timeout:
-		err = c.Process.Kill()
-		return fmt.Errorf("%s: %v", t.Name, ErrTimeout)
-	// Command finished.
-	case err = <-done:
-	}
-
-	if err != nil {
-		return fmt.Errorf("%s: executed operation caught an error: %v", t.Name, err)
 	}
 	return
 }
