@@ -12,7 +12,7 @@ import (
 
 const (
 	fileName        = "config.json"
-	dirName         = "CloudTransferTasks"
+	dirName         = "WrapNGo"
 	PlaceholderChar = "%"
 )
 
@@ -72,7 +72,7 @@ type Config struct {
 func defaultConfig() *Config {
 	return &Config{
 		GeneralSettings: GeneralSettings{
-			BinaryPath: "rclone",
+			BinaryPath: "your-program-to-wrap",
 			DateFormat: "YYYY-MM-DD_hh-mm-ss",
 		},
 		Tasks: []Task{
@@ -88,7 +88,7 @@ func defaultConfig() *Config {
 				PreOperation: &Operation{
 					FailIfNotSuccessful: true,
 					CaptureStdOut:       true,
-					Command:             "Call-Another-Program-Or-Script-Before-Rclone-Ran",
+					Command:             "Call-Another-Program-Or-Script-Before-Main-Program-Ran",
 					SecondsUntilTimeout: 3,
 					Arguments: []string{
 						"Description: Arguments can be used inside your called script / application.",
@@ -101,7 +101,7 @@ func defaultConfig() *Config {
 				PostOperation: &Operation{
 					FailIfNotSuccessful: true,
 					CaptureStdOut:       true,
-					Command:             "Call-Another-Program-Or-Script-After-Rclone-Ran",
+					Command:             "Call-Another-Program-Or-Script-After-Main-Program-Ran",
 					SecondsUntilTimeout: 3,
 					Arguments: []string{
 						"Description: Arguments can be used inside your called script / application.",

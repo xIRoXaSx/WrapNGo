@@ -1,7 +1,7 @@
 package main
 
 import (
-	"CloudTransferTasks/config"
+	"WrapNGo/config"
 	"bytes"
 	"fmt"
 	"log"
