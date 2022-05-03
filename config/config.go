@@ -52,7 +52,6 @@ type Task struct {
 	FileTypes                  []string    `json:"FileTypes"`
 	StartFlags                 []string    `json:"StartFlags"`
 	StopIfJobFailed            bool        `json:"StopIfJobFailed"`
-	StopIfOperationFailed      bool        `json:"StopIfOperationFailed"`
 	CompressToTarBeforeHand    bool        `json:"CompressToTarBeforeHand"`
 	OverwriteCompressedTar     bool        `json:"OverwriteCompressedTar"`
 	RemoveAfterJobCompletes    bool        `json:"RemoveAfterJobCompletes"`
@@ -77,14 +76,13 @@ func defaultConfig() *Config {
 		},
 		Tasks: []Task{
 			{
-				Name:                  "ShortNameOfTask",
-				Source:                "source",
-				Destination:           "SomeDrive:Destination/Path",
-				Action:                "copy",
-				StopIfJobFailed:       true,
-				StopIfOperationFailed: true,
-				FileTypes:             []string{"*.png", "*.jpg", "*.gif"},
-				StartFlags:            []string{"-P", "--retries 5", "--transfers 3"},
+				Name:            "ShortNameOfTask",
+				Source:          "source",
+				Destination:     "SomeDrive:Destination/Path",
+				Action:          "copy",
+				StopIfJobFailed: true,
+				FileTypes:       []string{"*.png", "*.jpg", "*.gif"},
+				StartFlags:      []string{"-P", "--retries 5", "--transfers 3"},
 				PreOperations: []Operation{
 					{
 						FailIfNotSuccessful: true,

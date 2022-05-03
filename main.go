@@ -30,7 +30,7 @@ func init() {
 
 func main() {
 	args := os.Args
-	errs := make([]error, 0)
+	numErr := 0
 	if len(args) > 1 {
 		conf := config.Current()
 		tasks := make([]config.Task, 0)
@@ -60,13 +60,12 @@ func main() {
 				defer wg.Done()
 				err := RunTask(task)
 				if err != nil {
-					errs = append(errs, err)
-					log.Println(err)
+					numErr++
 				}
 			}()
 		}
 		wg.Wait()
-		if len(errs) > 0 {
+		if numErr > 0 {
 			os.Exit(1)
 		}
 	}

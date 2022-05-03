@@ -46,7 +46,7 @@ func RunTask(t config.Task) (err error) {
 
 			err = runOperation(preOp, t, usrItr, jobPreOperation, i+1)
 			if err != nil {
-				if t.StopIfOperationFailed {
+				if preOp.FailIfNotSuccessful {
 					return
 				}
 			}
@@ -64,16 +64,23 @@ func RunTask(t config.Task) (err error) {
 	}
 
 	// Execute the PostOperations if available.
-	if len(t.PostOperations) > 0 {
-		for i, postOp := range t.PostOperations {
-			err = runOperation(postOp, t, usrItr, jobPostOperation, i+1)
-			if err != nil {
-				return fmt.Errorf("%s: %s: %v", t.Name, jobPostOperation, err)
-			}
-			log.Printf("%s: %s finished\n", t.Name, jobPostOperation)
+	for i, postOp := range t.PostOperations {
+		if !postOp.Enabled {
+			continue
 		}
+
+		err = runOperation(postOp, t, usrItr, jobPostOperation, i+1)
+		if err == nil {
+			log.Printf("%s: Task finished\n", t.Name)
+			continue
+		}
+
+		lErr := fmt.Errorf("%s: %s: %v", t.Name, jobPostOperation, err)
+		if postOp.FailIfNotSuccessful {
+			return lErr
+		}
+		log.Println(lErr)
 	}
-	log.Printf("%s: Task finished\n", t.Name)
 	return
 }
 
@@ -164,7 +171,7 @@ func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error)
 	}
 
 	if err != nil {
-		return fmt.Errorf("%s: %v: %v", t.Name, ErrJobFailed, buf)
+		return fmt.Errorf("%s: %v: %s", t.Name, ErrJobFailed, strings.TrimSuffix(buf.String(), "\n"))
 	}
 
 	log.Printf("Job \"%s\" completed successfully", t.Name)
@@ -182,7 +189,6 @@ func runOperation(o config.Operation, t config.Task, itrChan chan os.Signal, oTy
 	done := make(chan error, 1)
 	err = c.Start()
 	if err != nil {
-		log.Println(fmt.Sprintf("%s: %s: %v", t.Name, oType, err))
 		return
 	}
 
