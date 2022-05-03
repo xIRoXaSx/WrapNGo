@@ -27,14 +27,24 @@ func RunTask(t config.Task) (err error) {
 	opItr := make(chan error, 1)
 	signal.Notify(usrItr, syscall.SIGINT, syscall.SIGTERM)
 
-	// Execute PreOperation if available.
-	if t.PreOperation != nil && t.PreOperation.Enabled {
-		if t.PreOperation.AllowParallelRun {
-			go func() {
-				opItr <- runOperation(t.PreOperation, usrItr, t, jobPreOperation)
-			}()
-		} else {
-			err = runOperation(t.PreOperation, usrItr, t, jobPreOperation)
+	// Execute PreOperations if available.
+	if t.AllowParallelOperationsRun {
+		for i, preOp := range t.PreOperations {
+			if !preOp.Enabled {
+				continue
+			}
+
+			go func(o config.Operation, num int) {
+				opItr <- runOperation(o, t, usrItr, jobPreOperation, num)
+			}(preOp, i+1)
+		}
+	} else {
+		for i, preOp := range t.PreOperations {
+			if !preOp.Enabled {
+				continue
+			}
+
+			err = runOperation(preOp, t, usrItr, jobPreOperation, i+1)
 			if err != nil {
 				if t.StopIfOperationFailed {
 					return
@@ -53,13 +63,15 @@ func RunTask(t config.Task) (err error) {
 		err = nil
 	}
 
-	// Execute the PostOperation if available.
-	if t.PostOperation != nil && t.PostOperation.Enabled {
-		err = runOperation(t.PostOperation, usrItr, t, jobPostOperation)
-		if err != nil {
-			return fmt.Errorf("%s: %s: %v", t.Name, jobPostOperation, err)
+	// Execute the PostOperations if available.
+	if len(t.PostOperations) > 0 {
+		for i, postOp := range t.PostOperations {
+			err = runOperation(postOp, t, usrItr, jobPostOperation, i+1)
+			if err != nil {
+				return fmt.Errorf("%s: %s: %v", t.Name, jobPostOperation, err)
+			}
+			log.Printf("%s: %s finished\n", t.Name, jobPostOperation)
 		}
-		log.Printf("%s: %s finished\n", t.Name, jobPostOperation)
 	}
 	log.Printf("%s: Task finished\n", t.Name)
 	return
@@ -140,7 +152,7 @@ func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error)
 				log.Println(err)
 			}
 		}
-		return fmt.Errorf("%s: %v", t.Name, ErrOperationFailed)
+		return fmt.Errorf("%s: %v: %v", t.Name, jobPreOperation, ErrOperationFailed)
 	case err = <-job:
 	}
 
@@ -160,8 +172,8 @@ func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error)
 }
 
 // runOperation runs the given operation and blocks until it has finished.
-func runOperation(o *config.Operation, itrChan chan os.Signal, t config.Task, oType string) (err error) {
-	log.Printf("%s: Executing %s\n", t.Name, oType)
+func runOperation(o config.Operation, t config.Task, itrChan chan os.Signal, oType string, oNum int) (err error) {
+	log.Printf("%s: Executing %s #%d\n", t.Name, oType, oNum)
 	c := exec.Command(o.Command, replacePlaceholders(t, o.Arguments...)...)
 	if o.CaptureStdOut {
 		c.Stdout = os.Stdout
@@ -271,8 +283,8 @@ func omitEmpty(values []string) (val []string) {
 // escapeSplit will check the value for an escaped sequence before splitting to omit wrong splits.
 // escapeSeq is the string that should prevent the split.
 // separator is the string that is used to split.
-// 	Example: escapeSplit("Escaped\\ space, not escaped", "\\", " ")
-// 	Will produce []string{"Escaped space,", "not", "escaped"}
+//  Example: escapeSplit("Escaped\\ space, not escaped", "\\", " ")
+//  Will produce []string{"Escaped space,", "not", "escaped"}
 func escapeSplit(value, escapeSeq, separator string) (values []string) {
 	values = make([]string, 0)
 	token := "\x00"

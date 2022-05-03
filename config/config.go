@@ -33,32 +33,32 @@ type GeneralSettings struct {
 // Each Task can contain up to 2 Tasks (Pre- and Post-operation).
 type Operation struct {
 	Enabled              bool     `json:"Enabled"`
-	AllowParallelRun     bool     `json:"AllowParallelRun"`
 	FailIfNotSuccessful  bool     `json:"FailIfNotSuccessful"`
 	SecondsUntilTimeout  int      `json:"SecondsUntilTimeout"`
 	ContinueAfterTimeout bool     `json:"ContinueAfterTimeout"`
+	CaptureStdOut        bool     `json:"CaptureStdOut"`
 	Command              string   `json:"Command"`
 	Arguments            []string `json:"Arguments"`
-	CaptureStdOut        bool     `json:"CaptureStdOut"`
 }
 
 // The Task type contains information for a single job.
 // The Config contains n Tasks.
 type Task struct {
-	Name                    string     `json:"Name"`
-	Source                  string     `json:"Source"`
-	Destination             string     `json:"Destination"`
-	Action                  string     `json:"Action"`
-	FileTypesAsBlacklist    bool       `json:"FileTypesAsBlacklist"`
-	FileTypes               []string   `json:"FileTypes"`
-	StartFlags              []string   `json:"StartFlags"`
-	StopIfJobFailed         bool       `json:"StopIfJobFailed"`
-	StopIfOperationFailed   bool       `json:"StopIfOperationFailed"`
-	CompressToTarBeforeHand bool       `json:"CompressToTarBeforeHand"`
-	OverwriteCompressedTar  bool       `json:"OverwriteCompressedTar"`
-	RemoveAfterJobCompletes bool       `json:"RemoveAfterJobCompletes"`
-	PreOperation            *Operation `json:"PreOperation"`
-	PostOperation           *Operation `json:"PostOperation"`
+	Name                       string      `json:"Name"`
+	Source                     string      `json:"Source"`
+	Destination                string      `json:"Destination"`
+	Action                     string      `json:"Action"`
+	FileTypesAsBlacklist       bool        `json:"FileTypesAsBlacklist"`
+	FileTypes                  []string    `json:"FileTypes"`
+	StartFlags                 []string    `json:"StartFlags"`
+	StopIfJobFailed            bool        `json:"StopIfJobFailed"`
+	StopIfOperationFailed      bool        `json:"StopIfOperationFailed"`
+	CompressToTarBeforeHand    bool        `json:"CompressToTarBeforeHand"`
+	OverwriteCompressedTar     bool        `json:"OverwriteCompressedTar"`
+	RemoveAfterJobCompletes    bool        `json:"RemoveAfterJobCompletes"`
+	AllowParallelOperationsRun bool        `json:"AllowParallelOperationsRun"`
+	PreOperations              []Operation `json:"PreOperations"`
+	PostOperations             []Operation `json:"PostOperations"`
 }
 
 // The Config type contains all the information used inside this project.
@@ -85,30 +85,34 @@ func defaultConfig() *Config {
 				StopIfOperationFailed: true,
 				FileTypes:             []string{"*.png", "*.jpg", "*.gif"},
 				StartFlags:            []string{"-P", "--retries 5", "--transfers 3"},
-				PreOperation: &Operation{
-					FailIfNotSuccessful: true,
-					CaptureStdOut:       true,
-					Command:             "Call-Another-Program-Or-Script-Before-Main-Program-Ran",
-					SecondsUntilTimeout: 3,
-					Arguments: []string{
-						"Description: Arguments can be used inside your called script / application.",
-						"StartedAt: " + formatPlaceholder("Date"),
-						"CurrentAction: " + formatPlaceholder("Action"),
-						"Source: " + formatPlaceholder("Source"),
-						"Destination: " + formatPlaceholder("Destination"),
+				PreOperations: []Operation{
+					{
+						FailIfNotSuccessful: true,
+						CaptureStdOut:       true,
+						Command:             "Call-Another-Program-Or-Script-Before-Main-Program-Ran",
+						SecondsUntilTimeout: 3,
+						Arguments: []string{
+							"Description: Arguments can be used inside your called script / application.",
+							"StartedAt: " + formatPlaceholder("Date"),
+							"CurrentAction: " + formatPlaceholder("Action"),
+							"Source: " + formatPlaceholder("Source"),
+							"Destination: " + formatPlaceholder("Destination"),
+						},
 					},
 				},
-				PostOperation: &Operation{
-					FailIfNotSuccessful: true,
-					CaptureStdOut:       true,
-					Command:             "Call-Another-Program-Or-Script-After-Main-Program-Ran",
-					SecondsUntilTimeout: 3,
-					Arguments: []string{
-						"Description: Arguments can be used inside your called script / application.",
-						"StartedAt: " + formatPlaceholder("Date"),
-						"CurrentAction: " + formatPlaceholder("Action"),
-						"Source: " + formatPlaceholder("Source"),
-						"Destination: " + formatPlaceholder("Destination"),
+				PostOperations: []Operation{
+					{
+						FailIfNotSuccessful: true,
+						CaptureStdOut:       true,
+						Command:             "Call-Another-Program-Or-Script-After-Main-Program-Ran",
+						SecondsUntilTimeout: 3,
+						Arguments: []string{
+							"Description: Arguments can be used inside your called script / application.",
+							"StartedAt: " + formatPlaceholder("Date"),
+							"CurrentAction: " + formatPlaceholder("Action"),
+							"Source: " + formatPlaceholder("Source"),
+							"Destination: " + formatPlaceholder("Destination"),
+						},
 					},
 				},
 			},

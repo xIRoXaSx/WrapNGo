@@ -62,14 +62,14 @@ func compressPath(src string, buf io.Writer) (err error) {
 	tarW := tar.NewWriter(gzW)
 	err = filepath.Walk(src, func(path string, info fs.FileInfo, err error) (wErr error) {
 		// Tar header.
-		h, err := tar.FileInfoHeader(info, path)
-		if err != nil {
+		h, wErr := tar.FileInfoHeader(info, path)
+		if wErr != nil {
 			return
 		}
 
 		h.Name = filepath.ToSlash(path)
-		err = tarW.WriteHeader(h)
-		if err != nil {
+		wErr = tarW.WriteHeader(h)
+		if wErr != nil {
 			return
 		}
 
