@@ -1,4 +1,4 @@
-package main
+package parsing
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func parseDate(tm time.Time, format string) (date string, err error) {
+func ParseDate(tm time.Time, format string) (date string, err error) {
 	date = format
 	formats := map[string]string{
 		"YYYY": fmt.Sprintf("%d", tm.Year()),

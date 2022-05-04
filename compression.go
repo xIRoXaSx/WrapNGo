@@ -1,6 +1,7 @@
 package main
 
 import (
+	"WrapNGo/parsing"
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
@@ -29,7 +30,7 @@ func Compress(path string, overwrite bool) (output string, err error) {
 
 	parent := filepath.Dir(path)
 	dirName := filepath.Base(path)
-	t, err := parseDate(tm, "YYYY-MM-DD_hhmmssms")
+	t, err := parsing.ParseDate(tm, "YYYY-MM-DD_hhmmssms")
 	if err != nil {
 		return
 	}

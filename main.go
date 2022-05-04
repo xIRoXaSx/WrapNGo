@@ -2,8 +2,7 @@ package main
 
 import (
 	"WrapNGo/config"
-	"fmt"
-	"log"
+	"WrapNGo/logger"
 	"os"
 	"strings"
 	"sync"
@@ -13,19 +12,22 @@ func init() {
 	// Create new config if not already existing.
 	path, err := config.NewConfig()
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 	if path == "" {
-		log.Printf("Please modify the created config and restart. Path of config: %s\n", path)
+		logger.Infof("Please modify the created config and restart. Path of config: %s\n", path)
 		os.Exit(0)
 	}
 
 	// Load config values.
 	err = config.LoadConfig()
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 		return
 	}
+
+	// Create a new logger.
+	logger.NewInstance(config.Current().GeneralSettings.Debug)
 }
 
 func main() {
@@ -54,15 +56,16 @@ func main() {
 		wg := sync.WaitGroup{}
 		for _, t := range tasks {
 			wg.Add(1)
-			fmt.Printf("Starting Task \"%s\" in the background.\n", t.Name)
-			task := t
-			go func() {
+			logger.Infof("Starting Task \"%s\" in the background.\n", t.Name)
+			go func(t config.Task) {
 				defer wg.Done()
-				err := RunTask(task)
+				err := RunTask(t)
 				if err != nil {
+					logger.Error(err)
 					numErr++
 				}
-			}()
+				logger.Infof("%s: Task finished\n", t.Name)
+			}(t)
 		}
 		wg.Wait()
 		if numErr > 0 {

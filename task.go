@@ -2,9 +2,10 @@ package main
 
 import (
 	"WrapNGo/config"
+	"WrapNGo/logger"
+	"WrapNGo/parsing"
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -59,7 +60,7 @@ func RunTask(t config.Task) (err error) {
 		if t.StopIfJobFailed {
 			return
 		}
-		log.Println(err)
+		logger.Error(err)
 		err = nil
 	}
 
@@ -71,7 +72,6 @@ func RunTask(t config.Task) (err error) {
 
 		err = runOperation(postOp, t, usrItr, jobPostOperation, i+1)
 		if err == nil {
-			log.Printf("%s: Task finished\n", t.Name)
 			continue
 		}
 
@@ -79,7 +79,7 @@ func RunTask(t config.Task) (err error) {
 		if postOp.FailIfNotSuccessful {
 			return lErr
 		}
-		log.Println(lErr)
+		logger.Error(lErr)
 	}
 	return
 }
@@ -133,11 +133,11 @@ func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error)
 	c.Stderr = buf
 	err = c.Start()
 	if err != nil {
-		log.Println(fmt.Sprintf("%s: %v", t.Name, err))
+		logger.Errorf("%s: %v", t.Name, err)
 	}
 
 	go func() {
-		log.Printf("%s: Executing job...\n", t.Name)
+		logger.Infof("%s: Executing job...\n", t.Name)
 		job <- c.Wait()
 	}()
 
@@ -145,18 +145,18 @@ func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error)
 	case <-itrChan:
 		err = c.Process.Kill()
 		if err != nil {
-			log.Println(err)
+			logger.Error(err)
 		}
 		return fmt.Errorf("%s: %v", t.Name, ErrUserInterrupt)
 	case <-opItr:
 		err = c.Process.Kill()
 		if err != nil {
-			log.Println(err)
+			logger.Error(err)
 		}
 		if t.RemoveAfterJobCompletes {
 			err = os.Remove(t.Source)
 			if err != nil {
-				log.Println(err)
+				logger.Error(err)
 			}
 		}
 		return fmt.Errorf("%s: %v: %v", t.Name, jobPreOperation, ErrOperationFailed)
@@ -166,7 +166,7 @@ func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error)
 	if t.RemoveAfterJobCompletes {
 		err = os.Remove(t.Source)
 		if err != nil {
-			log.Println(err)
+			logger.Error(err)
 		}
 	}
 
@@ -174,16 +174,16 @@ func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error)
 		return fmt.Errorf("%s: %v: %s", t.Name, ErrJobFailed, strings.TrimSuffix(buf.String(), "\n"))
 	}
 
-	log.Printf("Job \"%s\" completed successfully", t.Name)
+	logger.Infof("Job \"%s\" completed successfully", t.Name)
 	return
 }
 
 // runOperation runs the given operation and blocks until it has finished.
 func runOperation(o config.Operation, t config.Task, itrChan chan os.Signal, oType string, oNum int) (err error) {
-	log.Printf("%s: Executing %s #%d\n", t.Name, oType, oNum)
+	logger.Infof("%s: Executing %s #%d\n", t.Name, oType, oNum)
 	c := exec.Command(o.Command, replacePlaceholders(t, o.Arguments...)...)
 	if o.CaptureStdOut {
-		c.Stdout = os.Stdout
+		c.Stdout = logger.OperationWriter()
 	}
 
 	done := make(chan error, 1)
@@ -236,7 +236,7 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 			}
 			found := reg.FindStringSubmatch(v)
 			if len(found) > 0 {
-				v, err = parseDate(tm, dateFormat)
+				v, err = parsing.ParseDate(tm, dateFormat)
 			}
 		}
 
@@ -251,7 +251,7 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 		found := reg.FindStringSubmatch(v)
 		if len(found) > 0 {
 			var parsed string
-			parsed, err = parseDate(tm, found[2])
+			parsed, err = parsing.ParseDate(tm, found[2])
 			if err != nil {
 				return
 			}
