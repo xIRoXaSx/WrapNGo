@@ -24,6 +24,8 @@ const (
 var (
 	wildcardReg = regexp.QuoteMeta("(") + "(.*)" + regexp.QuoteMeta(")")
 	dateReg     = regexp.MustCompile(fmt.Sprintf("(?i)(%sDate%s)", config.PlaceholderChar, config.PlaceholderChar))
+	mapReg      = regexp.MustCompile("map\\[(.*)]")
+	dynamicReg  = regexp.MustCompile("%Dynamic\\.(.*?)%")
 	dateFuncReg = regexp.MustCompile(
 		fmt.Sprintf("(?i)(%sDate%s%s)", config.PlaceholderChar, wildcardReg, config.PlaceholderChar),
 	)
@@ -274,7 +276,7 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 			v = strings.ReplaceAll(v, found[1], env)
 		}
 
-		// Dynamic placeholders.
+		// Task dependent placeholders.
 		for i := 0; i < fElem.NumField(); i++ {
 			fName := fElem.Type().Field(i).Name
 			fVal := fmt.Sprintf("%s", fElem.Field(i))
@@ -285,6 +287,27 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 			found = fieldReg.FindStringSubmatch(v)
 			if len(found) > 0 {
 				v = strings.Replace(v, found[1], fVal, -1)
+			}
+			if fName != "Dynamic" {
+				continue
+			}
+
+			// Dynamic placeholders.
+			found = mapReg.FindStringSubmatch(fVal)
+			if len(found) > 0 {
+				foundMatches := dynamicReg.FindAllStringSubmatch(v, -1)
+				valMap := escapeSplit(found[1], "\\", ":")
+				for j := 0; j < len(foundMatches); j++ {
+					for m := 0; m < len(valMap); m += 2 {
+						if strings.ToLower(foundMatches[j][1]) != strings.ToLower(valMap[m]) {
+							continue
+						}
+						if m+1 >= len(valMap) {
+							break
+						}
+						v = strings.Replace(v, foundMatches[j][0], valMap[m+1], -1)
+					}
+				}
 			}
 		}
 		replaced = append(replaced, v)

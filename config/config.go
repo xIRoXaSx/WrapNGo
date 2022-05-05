@@ -44,20 +44,21 @@ type Operation struct {
 // The Task type contains information for a single job.
 // The Config contains n Tasks.
 type Task struct {
-	Name                       string      `json:"Name"`
-	Source                     string      `json:"Source"`
-	Destination                string      `json:"Destination"`
-	Action                     string      `json:"Action"`
-	FileTypesAsBlacklist       bool        `json:"FileTypesAsBlacklist"`
-	FileTypes                  []string    `json:"FileTypes"`
-	StartFlags                 []string    `json:"StartFlags"`
-	StopIfJobFailed            bool        `json:"StopIfJobFailed"`
-	CompressToTarBeforeHand    bool        `json:"CompressToTarBeforeHand"`
-	OverwriteCompressedTar     bool        `json:"OverwriteCompressedTar"`
-	RemoveAfterJobCompletes    bool        `json:"RemoveAfterJobCompletes"`
-	AllowParallelOperationsRun bool        `json:"AllowParallelOperationsRun"`
-	PreOperations              []Operation `json:"PreOperations"`
-	PostOperations             []Operation `json:"PostOperations"`
+	Name                       string         `json:"Name"`
+	Source                     string         `json:"Source"`
+	Destination                string         `json:"Destination"`
+	Action                     string         `json:"Action"`
+	FileTypesAsBlacklist       bool           `json:"FileTypesAsBlacklist"`
+	Dynamic                    map[string]any `json:"Dynamic"`
+	FileTypes                  []string       `json:"FileTypes"`
+	StartFlags                 []string       `json:"StartFlags"`
+	StopIfJobFailed            bool           `json:"StopIfJobFailed"`
+	CompressToTarBeforeHand    bool           `json:"CompressToTarBeforeHand"`
+	OverwriteCompressedTar     bool           `json:"OverwriteCompressedTar"`
+	RemoveAfterJobCompletes    bool           `json:"RemoveAfterJobCompletes"`
+	AllowParallelOperationsRun bool           `json:"AllowParallelOperationsRun"`
+	PreOperations              []Operation    `json:"PreOperations"`
+	PostOperations             []Operation    `json:"PostOperations"`
 }
 
 // The Config type contains all the information used inside this project.
@@ -81,8 +82,12 @@ func defaultConfig() *Config {
 				Destination:     "SomeDrive:Destination/Path",
 				Action:          "copy",
 				StopIfJobFailed: true,
-				FileTypes:       []string{"*.png", "*.jpg", "*.gif"},
-				StartFlags:      []string{"-P", "--retries 5", "--transfers 3"},
+				Dynamic: map[string]any{
+					"Source":      "Some/Source/Path",
+					"Destination": "Some/Destination/Path",
+				},
+				FileTypes:  []string{"*.png", "*.jpg", "*.gif"},
+				StartFlags: []string{"-P", "--retries 5", "--transfers 3"},
 				PreOperations: []Operation{
 					{
 						FailIfNotSuccessful: true,
