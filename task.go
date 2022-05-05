@@ -21,6 +21,17 @@ const (
 	jobPostOperation = "PostOperation"
 )
 
+var (
+	wildcardReg = regexp.QuoteMeta("(") + "(.*)" + regexp.QuoteMeta(")")
+	dateReg     = regexp.MustCompile(fmt.Sprintf("(?i)(%sDate%s)", config.PlaceholderChar, config.PlaceholderChar))
+	dateFuncReg = regexp.MustCompile(
+		fmt.Sprintf("(?i)(%sDate%s%s)", config.PlaceholderChar, wildcardReg, config.PlaceholderChar),
+	)
+	envFuncReg = regexp.MustCompile(
+		fmt.Sprintf("(?i)(%sEnv%s%s)", config.PlaceholderChar, wildcardReg, config.PlaceholderChar),
+	)
+)
+
 // RunTask will execute the given Task.
 // It will start the Pre- and Post-Operations as well as the job.
 func RunTask(t config.Task) (err error) {
@@ -227,28 +238,26 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 	tm := time.Now()
 	dateFormat := config.Current().GeneralSettings.DateFormat
 	fElem := reflect.ValueOf(&t).Elem()
+	var (
+		err      error
+		fieldReg *regexp.Regexp
+		date     string
+	)
 	for _, v := range values {
 		// Check for date placeholders.
 		if dateFormat != "" {
-			reg, err := regexp.Compile(fmt.Sprintf("(?i)(%sDate%s)", config.PlaceholderChar, config.PlaceholderChar))
-			if err != nil {
-				continue
-			}
-			found := reg.FindStringSubmatch(v)
+			found := dateReg.FindStringSubmatch(v)
 			if len(found) > 0 {
-				v, err = parsing.ParseDate(tm, dateFormat)
+				date, err = parsing.ParseDate(tm, dateFormat)
+				if err != nil {
+					return
+				}
+				v = strings.Replace(v, found[0], date, -1)
 			}
 		}
 
 		// Check for single date placeholders (e.g %Date(YYYY-MM-DD)%)
-		dtFmt := regexp.QuoteMeta("(") + "(.*)" + regexp.QuoteMeta(")")
-		reg, err := regexp.Compile(
-			fmt.Sprintf("(?i)(%sDate%s%s)", config.PlaceholderChar, dtFmt, config.PlaceholderChar),
-		)
-		if err != nil {
-			continue
-		}
-		found := reg.FindStringSubmatch(v)
+		found := dateFuncReg.FindStringSubmatch(v)
 		if len(found) > 0 {
 			var parsed string
 			parsed, err = parsing.ParseDate(tm, found[2])
@@ -258,15 +267,22 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 			v = strings.ReplaceAll(v, found[1], parsed)
 		}
 
+		// Check for env placeholders.
+		found = envFuncReg.FindStringSubmatch(v)
+		if len(found) > 0 {
+			env := os.Getenv(found[2])
+			v = strings.ReplaceAll(v, found[1], env)
+		}
+
 		// Dynamic placeholders.
 		for i := 0; i < fElem.NumField(); i++ {
 			fName := fElem.Type().Field(i).Name
 			fVal := fmt.Sprintf("%s", fElem.Field(i))
-			reg, err = regexp.Compile(fmt.Sprintf("(?i)(%s%s%s)", config.PlaceholderChar, fName, config.PlaceholderChar))
+			fieldReg, err = regexp.Compile(fmt.Sprintf("(?i)(%s%s%s)", config.PlaceholderChar, fName, config.PlaceholderChar))
 			if err != nil {
 				continue
 			}
-			found = reg.FindStringSubmatch(v)
+			found = fieldReg.FindStringSubmatch(v)
 			if len(found) > 0 {
 				v = strings.Replace(v, found[1], fVal, -1)
 			}
