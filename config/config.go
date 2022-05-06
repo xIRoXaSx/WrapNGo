@@ -50,7 +50,7 @@ type Task struct {
 	Arguments                   []string       `json:"Arguments"`
 	StopIfUnsuccessful          bool           `json:"StopIfUnsuccessful"`
 	CompressPathToTarBeforeHand string         `json:"CompressPathToTarBeforeHand"`
-	OverwriteCompressedTar      bool           `json:"OverwriteCompressedTar"`
+	OverwriteCompressed         bool           `json:"OverwriteCompressed"`
 	RemovePathAfterJobCompletes string         `json:"RemovePathAfterJobCompletes"`
 	AllowParallelOperationsRun  bool           `json:"AllowParallelOperationsRun"`
 	PreOperations               []Operation    `json:"PreOperations"`

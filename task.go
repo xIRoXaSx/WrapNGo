@@ -101,7 +101,7 @@ func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error
 	t.CompressPathToTarBeforeHand = replacePlaceholders(*t, t.CompressPathToTarBeforeHand)[0]
 	if t.CompressPathToTarBeforeHand != "" {
 		var path string
-		path, err = compress(t.CompressPathToTarBeforeHand, t.OverwriteCompressedTar)
+		path, err = compress(t.CompressPathToTarBeforeHand, t.OverwriteCompressed)
 
 		// Only write back if compressing was successful.
 		if err != nil && t.StopIfUnsuccessful {
