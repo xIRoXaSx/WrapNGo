@@ -36,7 +36,7 @@ var (
 
 // RunTask will execute the given Task.
 // It will start the Pre- and Post-Operations as well as the job.
-func RunTask(t config.Task) (err error) {
+func RunTask(t *config.Task) (err error) {
 	usrItr := make(chan os.Signal, 1)
 	opItr := make(chan error, 1)
 	signal.Notify(usrItr, syscall.SIGINT, syscall.SIGTERM)
@@ -49,7 +49,7 @@ func RunTask(t config.Task) (err error) {
 			}
 
 			go func(o config.Operation, num int) {
-				opItr <- runOperation(o, t, usrItr, jobPreOperation, num)
+				opItr <- runOperation(o, *t, usrItr, jobPreOperation, num)
 			}(preOp, i+1)
 		}
 	} else {
@@ -58,9 +58,9 @@ func RunTask(t config.Task) (err error) {
 				continue
 			}
 
-			err = runOperation(preOp, t, usrItr, jobPreOperation, i+1)
+			err = runOperation(preOp, *t, usrItr, jobPreOperation, i+1)
 			if err != nil {
-				if preOp.FailIfNotSuccessful {
+				if preOp.StopIfUnsuccessful {
 					return
 				}
 			}
@@ -70,7 +70,7 @@ func RunTask(t config.Task) (err error) {
 	// Run the defined job.
 	err = runJob(t, usrItr, opItr)
 	if err != nil {
-		if t.StopIfJobFailed {
+		if t.StopIfUnsuccessful {
 			return
 		}
 		logger.Error(err)
@@ -83,22 +83,16 @@ func RunTask(t config.Task) (err error) {
 			continue
 		}
 
-		err = runOperation(postOp, t, usrItr, jobPostOperation, i+1)
-		if err == nil {
-			continue
+		err = runOperation(postOp, *t, usrItr, jobPostOperation, i+1)
+		if err != nil && postOp.StopIfUnsuccessful {
+			return
 		}
-
-		lErr := fmt.Errorf("%s: %s: %v", t.Name, jobPostOperation, err)
-		if postOp.FailIfNotSuccessful {
-			return lErr
-		}
-		logger.Error(lErr)
 	}
 	return
 }
 
 // runJob executes the actual binary action.
-func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error) {
+func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error) {
 	job := make(chan error)
 	args := make([]string, 1)
 	args[0] = t.Command
@@ -109,12 +103,12 @@ func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error)
 		path, err = compress(t.CompressPathToTarBeforeHand, t.OverwriteCompressedTar)
 
 		// Only write back if compressing was successful.
-		if err != nil && t.StopIfJobFailed {
+		if err != nil && t.StopIfUnsuccessful {
 			return
 		}
 		t.CompressPathToTarBeforeHand = path
 	}
-	args = append(args, replacePlaceholders(t, t.Command)[0], replacePlaceholders(t, t.Command)[0])
+	args = append(args, replacePlaceholders(*t, t.Command)[0], replacePlaceholders(*t, t.Command)[0])
 
 	// Since flags can contain spaces, separate them
 	// and append them to the args slice.
@@ -123,7 +117,7 @@ func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error)
 		args = append(args, flags...)
 	}
 
-	args = replacePlaceholders(t, args...)
+	args = replacePlaceholders(*t, args...)
 	buf := &bytes.Buffer{}
 	c := exec.Command(config.Current().GeneralSettings.BinaryPath, args...)
 	c.Stdout = os.Stdout
@@ -199,7 +193,7 @@ func runOperation(o config.Operation, t config.Task, itrChan chan os.Signal, oTy
 	}()
 
 	var timeout <-chan time.Time
-	if o.SecondsUntilTimeout > 0 {
+	if o.SecondsUntilTimeout > 0 && !o.IgnoreTimeout {
 		timeout = time.After(time.Duration(o.SecondsUntilTimeout) * time.Second)
 	}
 

@@ -32,13 +32,13 @@ type GeneralSettings struct {
 // The Operation type contains information for a single Task operation.
 // Each Task can contain up to 2 Tasks (Pre- and Post-operation).
 type Operation struct {
-	Enabled              bool     `json:"Enabled"`
-	FailIfNotSuccessful  bool     `json:"FailIfNotSuccessful"`
-	SecondsUntilTimeout  int      `json:"SecondsUntilTimeout"`
-	ContinueAfterTimeout bool     `json:"ContinueAfterTimeout"`
-	CaptureStdOut        bool     `json:"CaptureStdOut"`
-	Command              string   `json:"Command"`
-	Arguments            []string `json:"Arguments"`
+	Enabled             bool     `json:"Enabled"`
+	StopIfUnsuccessful  bool     `json:"StopIfUnsuccessful"`
+	SecondsUntilTimeout int      `json:"SecondsUntilTimeout"`
+	IgnoreTimeout       bool     `json:"IgnoreTimeout"`
+	CaptureStdOut       bool     `json:"CaptureStdOut"`
+	Command             string   `json:"Command"`
+	Arguments           []string `json:"Arguments"`
 }
 
 // The Task type contains information for a single job.
@@ -48,7 +48,7 @@ type Task struct {
 	Command                     string         `json:"Command"`
 	Dynamic                     map[string]any `json:"Dynamic"`
 	Arguments                   []string       `json:"Arguments"`
-	StopIfJobFailed             bool           `json:"StopIfJobFailed"`
+	StopIfUnsuccessful          bool           `json:"StopIfUnsuccessful"`
 	CompressPathToTarBeforeHand string         `json:"CompressPathToTarBeforeHand"`
 	OverwriteCompressedTar      bool           `json:"OverwriteCompressedTar"`
 	RemovePathAfterJobCompletes string         `json:"RemovePathAfterJobCompletes"`
@@ -73,41 +73,42 @@ func defaultConfig() *Config {
 		},
 		Tasks: []Task{
 			{
-				Name:            "ShortNameOfTask",
-				Command:         "Binary/command",
-				StopIfJobFailed: true,
+				Name:               "ShortNameOfTask",
+				Command:            "Binary/command",
+				StopIfUnsuccessful: true,
 				Dynamic: map[string]any{
+					"Description": "Define your own placeholders here and use the with %Dynamic.<Name>%",
 					"Source":      "Some/Source/Path",
 					"Destination": "Some/Destination/Path",
 				},
 				Arguments: []string{"-P", "--retries 5", "--transfers 3"},
 				PreOperations: []Operation{
 					{
-						FailIfNotSuccessful: true,
+						StopIfUnsuccessful:  true,
 						CaptureStdOut:       true,
 						Command:             "Call-Another-Program-Or-Script-Before-Main-Program-Ran",
 						SecondsUntilTimeout: 3,
 						Arguments: []string{
 							"Description: Arguments can be used inside your called script / application.",
 							"StartedAt: " + formatPlaceholder("Date"),
-							"CurrentAction: " + formatPlaceholder("Command"),
-							"Source: " + formatPlaceholder("Source"),
-							"Destination: " + formatPlaceholder("Destination"),
+							"Command: " + formatPlaceholder("Command"),
+							"Source: " + formatPlaceholder("Dynamic.Source"),
+							"Destination: " + formatPlaceholder("Dynamic.Destination"),
 						},
 					},
 				},
 				PostOperations: []Operation{
 					{
-						FailIfNotSuccessful: true,
+						StopIfUnsuccessful:  true,
 						CaptureStdOut:       true,
 						Command:             "Call-Another-Program-Or-Script-After-Main-Program-Ran",
 						SecondsUntilTimeout: 3,
 						Arguments: []string{
 							"Description: Arguments can be used inside your called script / application.",
 							"StartedAt: " + formatPlaceholder("Date"),
-							"CurrentAction: " + formatPlaceholder("Command"),
-							"Source: " + formatPlaceholder("Source"),
-							"Destination: " + formatPlaceholder("Destination"),
+							"Command: " + formatPlaceholder("Command"),
+							"Source: " + formatPlaceholder("Dynamic.Source"),
+							"Destination: " + formatPlaceholder("Dynamic.Destination"),
 						},
 					},
 				},
