@@ -101,42 +101,26 @@ func RunTask(t config.Task) (err error) {
 func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error) {
 	job := make(chan error)
 	args := make([]string, 1)
-	args[0] = t.Action
+	args[0] = t.Command
 
 	// Compress source if enabled.
-	if t.CompressToTarBeforeHand {
+	if t.CompressPathToTarBeforeHand != "" {
 		var path string
-		path, err = Compress(t.Source, t.OverwriteCompressedTar)
+		path, err = compress(t.CompressPathToTarBeforeHand, t.OverwriteCompressedTar)
+
+		// Only write back if compressing was successful.
 		if err != nil && t.StopIfJobFailed {
 			return
 		}
-		t.Source = path
+		t.CompressPathToTarBeforeHand = path
 	}
-	args = append(args, replacePlaceholders(t, t.Source)[0], replacePlaceholders(t, t.Destination)[0])
+	args = append(args, replacePlaceholders(t, t.Command)[0], replacePlaceholders(t, t.Command)[0])
 
 	// Since flags can contain spaces, separate them
 	// and append them to the args slice.
-	for _, f := range t.StartFlags {
+	for _, f := range t.Arguments {
 		flags := strings.Split(f, " ")
 		args = append(args, flags...)
-	}
-
-	// To be able to use the Task's FileTypes slice,
-	// append it to the args via the include / exclude flag.
-	if len(t.FileTypes) > 0 {
-		appendType := "--exclude"
-		if !t.FileTypesAsBlacklist {
-			appendType = "--include"
-		}
-
-		// Since user can use spaces between each filetype,
-		// make sure to separate each one via comma to keep things standardized.
-		args = append(args, appendType)
-		ft := make([]string, 0)
-		for _, f := range t.FileTypes {
-			ft = append(ft, escapeSplit(f, "\\", " ")...)
-		}
-		args = append(args, fmt.Sprintf("{%v}", strings.Join(ft, ",")))
 	}
 
 	args = replacePlaceholders(t, args...)
@@ -154,6 +138,22 @@ func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error)
 		job <- c.Wait()
 	}()
 
+	// Anonymous function to remove the given path after job completes.
+	removePath := func(path string) {
+		if path != "" {
+			_, err = os.Stat(path)
+			if err != nil {
+				logger.Error(err)
+				return
+			}
+
+			err = os.Remove(path)
+			if err != nil {
+				logger.Error(err)
+			}
+		}
+	}
+
 	select {
 	case <-itrChan:
 		err = c.Process.Kill()
@@ -166,23 +166,12 @@ func runJob(t config.Task, itrChan chan os.Signal, opItr chan error) (err error)
 		if err != nil {
 			logger.Error(err)
 		}
-		if t.RemoveAfterJobCompletes {
-			err = os.Remove(t.Source)
-			if err != nil {
-				logger.Error(err)
-			}
-		}
+		removePath(t.RemovePathAfterJobCompletes)
 		return fmt.Errorf("%s: %v: %v", t.Name, jobPreOperation, ErrOperationFailed)
 	case err = <-job:
 	}
 
-	if t.RemoveAfterJobCompletes {
-		err = os.Remove(t.Source)
-		if err != nil {
-			logger.Error(err)
-		}
-	}
-
+	removePath(t.RemovePathAfterJobCompletes)
 	if err != nil {
 		return fmt.Errorf("%s: %v: %s", t.Name, ErrJobFailed, strings.TrimSuffix(buf.String(), "\n"))
 	}

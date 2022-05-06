@@ -23,7 +23,7 @@ var config = &Config{
 }
 
 type GeneralSettings struct {
-	BinaryPath            string `json:"BinaryPath"`
+	BinaryPath            string `json:"Command"`
 	Debug                 bool   `json:"Debug"`
 	CaseSensitiveJobNames bool   `json:"CaseSensitiveJobNames"`
 	DateFormat            string `json:"DateFormat"`
@@ -44,21 +44,17 @@ type Operation struct {
 // The Task type contains information for a single job.
 // The Config contains n Tasks.
 type Task struct {
-	Name                       string         `json:"Name"`
-	Source                     string         `json:"Source"`
-	Destination                string         `json:"Destination"`
-	Action                     string         `json:"Action"`
-	FileTypesAsBlacklist       bool           `json:"FileTypesAsBlacklist"`
-	Dynamic                    map[string]any `json:"Dynamic"`
-	FileTypes                  []string       `json:"FileTypes"`
-	StartFlags                 []string       `json:"StartFlags"`
-	StopIfJobFailed            bool           `json:"StopIfJobFailed"`
-	CompressToTarBeforeHand    bool           `json:"CompressToTarBeforeHand"`
-	OverwriteCompressedTar     bool           `json:"OverwriteCompressedTar"`
-	RemoveAfterJobCompletes    bool           `json:"RemoveAfterJobCompletes"`
-	AllowParallelOperationsRun bool           `json:"AllowParallelOperationsRun"`
-	PreOperations              []Operation    `json:"PreOperations"`
-	PostOperations             []Operation    `json:"PostOperations"`
+	Name                        string         `json:"Name"`
+	Command                     string         `json:"Command"`
+	Dynamic                     map[string]any `json:"Dynamic"`
+	Arguments                   []string       `json:"Arguments"`
+	StopIfJobFailed             bool           `json:"StopIfJobFailed"`
+	CompressPathToTarBeforeHand string         `json:"CompressPathToTarBeforeHand"`
+	OverwriteCompressedTar      bool           `json:"OverwriteCompressedTar"`
+	RemovePathAfterJobCompletes string         `json:"RemovePathAfterJobCompletes"`
+	AllowParallelOperationsRun  bool           `json:"AllowParallelOperationsRun"`
+	PreOperations               []Operation    `json:"PreOperations"`
+	PostOperations              []Operation    `json:"PostOperations"`
 }
 
 // The Config type contains all the information used inside this project.
@@ -78,16 +74,13 @@ func defaultConfig() *Config {
 		Tasks: []Task{
 			{
 				Name:            "ShortNameOfTask",
-				Source:          "source",
-				Destination:     "SomeDrive:Destination/Path",
-				Action:          "copy",
+				Command:         "Binary/command",
 				StopIfJobFailed: true,
 				Dynamic: map[string]any{
 					"Source":      "Some/Source/Path",
 					"Destination": "Some/Destination/Path",
 				},
-				FileTypes:  []string{"*.png", "*.jpg", "*.gif"},
-				StartFlags: []string{"-P", "--retries 5", "--transfers 3"},
+				Arguments: []string{"-P", "--retries 5", "--transfers 3"},
 				PreOperations: []Operation{
 					{
 						FailIfNotSuccessful: true,
@@ -97,7 +90,7 @@ func defaultConfig() *Config {
 						Arguments: []string{
 							"Description: Arguments can be used inside your called script / application.",
 							"StartedAt: " + formatPlaceholder("Date"),
-							"CurrentAction: " + formatPlaceholder("Action"),
+							"CurrentAction: " + formatPlaceholder("Command"),
 							"Source: " + formatPlaceholder("Source"),
 							"Destination: " + formatPlaceholder("Destination"),
 						},
@@ -112,7 +105,7 @@ func defaultConfig() *Config {
 						Arguments: []string{
 							"Description: Arguments can be used inside your called script / application.",
 							"StartedAt: " + formatPlaceholder("Date"),
-							"CurrentAction: " + formatPlaceholder("Action"),
+							"CurrentAction: " + formatPlaceholder("Command"),
 							"Source: " + formatPlaceholder("Source"),
 							"Destination: " + formatPlaceholder("Destination"),
 						},

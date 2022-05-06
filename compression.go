@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-// Compress creates a tar gzip archive
-func Compress(path string, overwrite bool) (output string, err error) {
+// compress creates a tar gzip archive
+func compress(path string, overwrite bool) (output string, err error) {
 	tm := time.Now()
 	_, err = os.Stat(path)
 	if err != nil {
