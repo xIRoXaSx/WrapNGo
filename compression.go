@@ -54,6 +54,7 @@ func compress(path string, overwrite bool) (output string, err error) {
 	}
 
 	_, err = io.Copy(arch, &buf)
+	err = arch.Close()
 	return
 }
 
@@ -82,6 +83,11 @@ func compressPath(src string, buf io.Writer) (err error) {
 			}
 
 			_, wErr = io.Copy(tarW, data)
+			if wErr != nil {
+				return wErr
+			}
+
+			wErr = data.Close()
 			if wErr != nil {
 				return wErr
 			}

@@ -98,6 +98,7 @@ func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error
 	args[0] = t.Command
 
 	// Compress source if enabled.
+	t.CompressPathToTarBeforeHand = replacePlaceholders(*t, t.CompressPathToTarBeforeHand)[0]
 	if t.CompressPathToTarBeforeHand != "" {
 		var path string
 		path, err = compress(t.CompressPathToTarBeforeHand, t.OverwriteCompressedTar)
@@ -119,7 +120,12 @@ func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error
 
 	args = replacePlaceholders(*t, args...)
 	buf := &bytes.Buffer{}
-	c := exec.Command(config.Current().GeneralSettings.BinaryPath, args...)
+	cmd := config.Current().GeneralSettings.GlobalCommand
+	if t.Command != "" {
+		cmd = t.Command
+	}
+
+	c := exec.Command(cmd, args...)
 	c.Stdout = os.Stdout
 	c.Stderr = buf
 	err = c.Start()
@@ -132,22 +138,28 @@ func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error
 		job <- c.Wait()
 	}()
 
-	// Anonymous function to remove the given path after job completes.
+	// Anonymous function which tries to remove the given path
+	// 3 times after the job completes.
 	removePath := func(path string) {
 		if path != "" {
-			_, err = os.Stat(path)
+			_, err := os.Stat(path)
 			if err != nil {
 				logger.Error(err)
 				return
 			}
-
-			err = os.Remove(path)
-			if err != nil {
-				logger.Error(err)
+			for i := 0; i < 3; i++ {
+				time.Sleep(500 * time.Millisecond)
+				err = os.Remove(path)
+				if err == nil {
+					return
+				}
 			}
+			logger.Error(err)
 		}
+		return
 	}
 
+	t.RemovePathAfterJobCompletes = replacePlaceholders(*t, t.RemovePathAfterJobCompletes)[0]
 	select {
 	case <-itrChan:
 		err = c.Process.Kill()

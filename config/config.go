@@ -23,7 +23,7 @@ var config = &Config{
 }
 
 type GeneralSettings struct {
-	BinaryPath            string `json:"Command"`
+	GlobalCommand         string `json:"GlobalCommand"`
 	Debug                 bool   `json:"Debug"`
 	CaseSensitiveJobNames bool   `json:"CaseSensitiveJobNames"`
 	DateFormat            string `json:"DateFormat"`
@@ -68,8 +68,8 @@ type Config struct {
 func defaultConfig() *Config {
 	return &Config{
 		GeneralSettings: GeneralSettings{
-			BinaryPath: "your-program-to-wrap",
-			DateFormat: "YYYY-MM-DD_hh-mm-ss",
+			GlobalCommand: "your-program-to-wrap",
+			DateFormat:    "YYYY-MM-DD_hh-mm-ss",
 		},
 		Tasks: []Task{
 			{
