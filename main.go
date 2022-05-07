@@ -3,6 +3,7 @@ package main
 import (
 	"WrapNGo/config"
 	"WrapNGo/logger"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -10,12 +11,12 @@ import (
 
 func init() {
 	// Create new config if not already existing.
-	path, err := config.NewConfig()
+	path, created, err := config.NewConfig()
 	if err != nil {
-		logger.Fatal(err)
+		log.Fatal(err)
 	}
-	if path == "" {
-		logger.Infof("Please modify the created config and restart. Path of config: %s\n", path)
+	if created {
+		log.Printf("Please modify the created config and restart. Path of config: %s\n", path)
 		os.Exit(0)
 	}
 

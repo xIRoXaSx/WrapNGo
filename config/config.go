@@ -118,7 +118,7 @@ func defaultConfig() *Config {
 }
 
 // NewConfig creates a new config if it does not already exist.
-func NewConfig() (path string, err error) {
+func NewConfig() (path string, created bool, err error) {
 	path, err = configPath()
 	if err != nil {
 		return
@@ -151,6 +151,7 @@ func NewConfig() (path string, err error) {
 		if err != nil {
 			return
 		}
+		created = true
 	}
 	return
 }
