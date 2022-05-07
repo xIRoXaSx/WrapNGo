@@ -72,5 +72,7 @@ func main() {
 		if numErr > 0 {
 			os.Exit(1)
 		}
+		return
 	}
+	logger.Info("Please provide a command or task name.")
 }
