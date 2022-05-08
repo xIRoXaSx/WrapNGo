@@ -95,7 +95,7 @@ func interactive() {
 		var opt int
 		err := survey.AskOne(&survey.Select{
 			Message: "Please select an option",
-			Options: []string{"List tasks", "Regenerate default config", "Exit"},
+			Options: []string{"List tasks", "Execute task", "Regenerate default config", "Exit"},
 			Default: 0,
 		}, &opt)
 		if err != nil {
@@ -116,6 +116,25 @@ func interactive() {
 				logger.Infof("\t> %s: %s", cfg.Tasks[i].Name, cfg.Tasks[i].Command)
 			}
 		case 1:
+			// Execute selected task.
+			ind := 0
+			cfg := config.Current()
+			tasks := make([]string, len(cfg.Tasks))
+			for i := 0; i < len(cfg.Tasks); i++ {
+				tasks[i] = cfg.Tasks[i].Name
+			}
+
+			err = survey.AskOne(&survey.Select{
+				Options: tasks,
+				Message: "Choose a task to execute",
+			}, &ind)
+			if err != nil {
+				logger.Fatal(err)
+			}
+
+			os.Args = append(os.Args, cfg.Tasks[ind].Name)
+			main()
+		case 2:
 			// Regenerate config.
 			var (
 				confirm bool
@@ -137,7 +156,7 @@ func interactive() {
 				logger.Fatalf("could not create new config: %v", err)
 			}
 			logger.Infof("Please modify the created config and restart. Path of config: %s\n", path)
-		case 2:
+		case 3:
 			// Exit.
 			return
 		}
