@@ -3,15 +3,18 @@ package main
 import (
 	"WrapNGo/config"
 	"WrapNGo/logger"
+	"fmt"
 	"log"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/AlecAivazis/survey/v2"
 )
 
 func init() {
 	// Create new config if not already existing.
-	path, created, err := config.NewConfig()
+	path, created, err := config.NewConfig(false)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -23,7 +26,7 @@ func init() {
 	// Load config values.
 	err = config.LoadConfig()
 	if err != nil {
-		logger.Fatal(err)
+		log.Fatal(err)
 		return
 	}
 
@@ -33,6 +36,11 @@ func init() {
 
 func main() {
 	args := os.Args
+	if len(args) < 2 {
+		interactive()
+		return
+	}
+
 	numErr := 0
 	if len(args) > 1 {
 		conf := config.Current()
@@ -51,6 +59,11 @@ func main() {
 				}
 				tasks = append(tasks, t)
 			}
+		}
+
+		if len(tasks) < 1 {
+			logger.Warn("no such task found.")
+			return
 		}
 
 		// Run each task in a separate goroutine to parallelize.
@@ -75,4 +88,59 @@ func main() {
 		return
 	}
 	logger.Info("Please provide a command or task name.")
+}
+
+func interactive() {
+	for {
+		var opt int
+		err := survey.AskOne(&survey.Select{
+			Message: "Please select an option",
+			Options: []string{"List tasks", "Regenerate default config", "Exit"},
+			Default: 0,
+		}, &opt)
+		if err != nil {
+			logger.Fatal(ErrUserInterrupt)
+		}
+
+		switch opt {
+		case 0:
+			// List all tasks.
+			cfg := config.Current()
+			tskStr := "tasks are"
+			if len(cfg.Tasks) == 1 {
+				tskStr = "task is"
+			}
+
+			logger.Infof("Currently %d %s stored:\n", len(cfg.Tasks), tskStr)
+			for i := 0; i < len(cfg.Tasks); i++ {
+				logger.Infof("\t> %s: %s", cfg.Tasks[i].Name, cfg.Tasks[i].Command)
+			}
+		case 1:
+			// Regenerate config.
+			var (
+				confirm bool
+				path    string
+			)
+			err = survey.AskOne(&survey.Confirm{
+				Message: "Are you sure? This will overwrite your current config!",
+			}, &confirm)
+			if err != nil {
+				logger.Fatal(err)
+			}
+
+			if !confirm {
+				continue
+			}
+
+			path, _, err = config.NewConfig(true)
+			if err != nil {
+				logger.Fatalf("could not create new config: %v", err)
+			}
+			logger.Infof("Please modify the created config and restart. Path of config: %s\n", path)
+		case 2:
+			// Exit.
+			return
+		}
+		fmt.Println()
+	}
 }

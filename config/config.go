@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -117,8 +118,8 @@ func defaultConfig() *Config {
 	}
 }
 
-// NewConfig creates a new config if it does not already exist.
-func NewConfig() (path string, created bool, err error) {
+// NewConfig creates a new config.
+func NewConfig(overwrite bool) (path string, created bool, err error) {
 	path, err = configPath()
 	if err != nil {
 		return
@@ -135,6 +136,13 @@ func NewConfig() (path string, created bool, err error) {
 		err = os.Mkdir(p, 0700)
 		if err != nil {
 			return
+		}
+	}
+
+	if err == nil && overwrite {
+		err = os.Remove(path)
+		if err != nil {
+			log.Fatal("unable to remove config file")
 		}
 	}
 
