@@ -95,7 +95,12 @@ func interactive() {
 		var opt int
 		err := survey.AskOne(&survey.Select{
 			Message: "Please select an option",
-			Options: []string{"List tasks", "Execute task", "Regenerate default config", "Exit"},
+			Options: []string{
+				"List tasks",
+				"Execute task",
+				"Regenerate default config",
+				"Exit",
+			},
 			Default: 0,
 		}, &opt)
 		if err != nil {

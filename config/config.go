@@ -78,7 +78,7 @@ func defaultConfig() *Config {
 				Command:            "Binary/command",
 				StopIfUnsuccessful: true,
 				Dynamic: map[string]any{
-					"Description": "Define your own placeholders here and use the with %Dynamic.<Name>%",
+					"Description": "Define your own placeholders here and use the with %Dynamic.Name%",
 					"Source":      "Some/Source/Path",
 					"Destination": "Some/Destination/Path",
 				},
