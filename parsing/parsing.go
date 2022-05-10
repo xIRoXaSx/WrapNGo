@@ -25,7 +25,7 @@ func ParseDate(tm time.Time, format string) (date string, err error) {
 		"hh":   fmt.Sprintf("%02d", tm.Hour()),
 		"h":    fmt.Sprintf("%d", tm.Hour()),
 		"mm":   fmt.Sprintf("%02d", tm.Minute()),
-		"m":    fmt.Sprintf("%02d", tm.Minute()),
+		"m":    fmt.Sprintf("%d", tm.Minute()),
 		"ss":   fmt.Sprintf("%02d", tm.Second()),
 		"s":    fmt.Sprintf("%d", tm.Second()),
 		"ms":   fmt.Sprintf("%d", int32(tm.Nanosecond())/int32(time.Millisecond)),

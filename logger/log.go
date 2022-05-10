@@ -23,6 +23,7 @@ const (
 var (
 	l  *logger
 	ow *operationWriter
+	jw *jobWriter
 )
 
 type logWriter struct {
@@ -44,18 +45,42 @@ func (ow operationWriter) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
+type jobWriter struct {
+	io.Writer
+	format string
+}
+
+func (jw jobWriter) Write(b []byte) (n int, err error) {
+	l.job.Print(string(b))
+	return len(b), nil
+}
+
 // NewInstance creates a new singleton logging instance.
 func NewInstance(debug bool) {
+	ow = &operationWriter{
+		Writer: os.Stdout,
+		format: logFormat,
+	}
+
+	jw = &jobWriter{
+		Writer: os.Stdout,
+		format: logFormat,
+	}
+
 	l = &logger{
 		debugEnabled: debug,
 		debug: log.New(&logWriter{
 			Writer: os.Stdout,
 			format: logFormat,
-		}, fmt.Sprintf(" [%sdbg%s] ", colorCyan, colorReset), 0),
+		}, fmt.Sprintf(" [%sdbg%s] ", colorGray, colorReset), 0),
 		op: log.New(&logWriter{
 			Writer: os.Stdout,
 			format: logFormat,
-		}, fmt.Sprintf(" [%sopr%s] ", colorGray, colorReset), 0),
+		}, fmt.Sprintf(" [%sopr%s] ", colorCyan, colorReset), 0),
+		job: log.New(&logWriter{
+			Writer: os.Stdout,
+			format: logFormat,
+		}, fmt.Sprintf(" [%sjob%s] ", colorPurple, colorReset), 0),
 		info: log.New(&logWriter{
 			Writer: os.Stdout,
 			format: logFormat,
@@ -69,17 +94,13 @@ func NewInstance(debug bool) {
 			format: logFormat,
 		}, fmt.Sprintf(" [%serr%s] ", colorRed, colorReset), 0),
 	}
-
-	ow = &operationWriter{
-		Writer: os.Stdout,
-		format: logFormat,
-	}
 }
 
 type logger struct {
 	debugEnabled bool
 	debug        *log.Logger
 	op           *log.Logger
+	job          *log.Logger
 	info         *log.Logger
 	warn         *log.Logger
 	error        *log.Logger
@@ -87,6 +108,10 @@ type logger struct {
 
 func OperationWriter() io.Writer {
 	return ow
+}
+
+func JobWriter() io.Writer {
+	return jw
 }
 
 func Debug(msg string) {
@@ -109,6 +134,14 @@ func Op(msg string) {
 
 func Opf(format string, v ...any) {
 	l.op.Printf(format, v...)
+}
+
+func Job(msg string) {
+	l.job.Println(msg)
+}
+
+func Jobf(format string, v ...any) {
+	l.job.Printf(format, v...)
 }
 
 func Info(msg string) {

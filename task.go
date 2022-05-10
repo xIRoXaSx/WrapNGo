@@ -95,7 +95,7 @@ func RunTask(t *config.Task) (err error) {
 func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error) {
 	job := make(chan error)
 	args := make([]string, 1)
-	args[0] = t.Command
+	args[0] = replacePlaceholders(*t, t.Command)[0]
 
 	// Compress source if enabled.
 	t.CompressPathToTarBeforeHand = replacePlaceholders(*t, t.CompressPathToTarBeforeHand)[0]
@@ -109,7 +109,6 @@ func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error
 		}
 		t.CompressPathToTarBeforeHand = path
 	}
-	args = append(args, replacePlaceholders(*t, t.Command)[0], replacePlaceholders(*t, t.Command)[0])
 
 	// Since flags can contain spaces, separate them
 	// and append them to the args slice.
@@ -126,7 +125,7 @@ func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error
 	}
 
 	c := exec.Command(cmd, args...)
-	c.Stdout = os.Stdout
+	c.Stdout = logger.JobWriter()
 	c.Stderr = buf
 	err = c.Start()
 	if err != nil {
@@ -189,7 +188,7 @@ func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error
 // runOperation runs the given operation and blocks until it has finished.
 func runOperation(o config.Operation, t config.Task, itrChan chan os.Signal, oType string, oNum int) (err error) {
 	logger.Infof("%s: Executing %s #%d\n", t.Name, oType, oNum)
-	c := exec.Command(o.Command, replacePlaceholders(t, o.Arguments...)...)
+	c := exec.Command(replacePlaceholders(t, o.Command)[0], replacePlaceholders(t, o.Arguments...)...)
 	if o.CaptureStdOut {
 		c.Stdout = logger.OperationWriter()
 	}
