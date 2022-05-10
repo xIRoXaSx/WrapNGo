@@ -1,5 +1,5 @@
 # WrapNGo
-<img src="https://user-images.githubusercontent.com/38859398/167641088-6eed9457-2540-454d-bb38-a21700fd4c51.png" alt="WrapNGo icon made by LilliaKurako" style="float: right"/>  
+<img src="https://user-images.githubusercontent.com/38859398/167641088-6eed9457-2540-454d-bb38-a21700fd4c51.png" alt="WrapNGo icon made by LilliaKurako" style="float: right" align="right"/>  
 
 ## About
 Started as a simple backup solution, WrapNGo evolved into a fully configurable process wrapper.  
@@ -30,7 +30,7 @@ You can either call the program without any arguments to use the interactive mod
 ***
 
 ## Configuration
-Each task can consist of 3 main components:  
+Each task can consist of 3 main components:
 ```
 Task
   ├ PreOperations
@@ -38,7 +38,7 @@ Task
   └ PostOperations
 ```
 
-Each `PreOperations` and `PostOperations` section can consist of 0 or more operations:  
+Each `PreOperations` and `PostOperations` section can consist of 0 or more operations:
 ```
 Task
   ├ PreOperations
