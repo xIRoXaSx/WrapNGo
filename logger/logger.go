@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -37,20 +38,30 @@ func (w logWriter) Write(b []byte) (n int, err error) {
 
 type operationWriter struct {
 	io.Writer
+
+	mux    sync.Mutex
 	format string
 }
 
-func (ow operationWriter) Write(b []byte) (n int, err error) {
+func (ow *operationWriter) Write(b []byte) (n int, err error) {
+	ow.mux.Lock()
+	defer ow.mux.Unlock()
+
 	l.op.Print(string(b))
 	return len(b), nil
 }
 
 type jobWriter struct {
 	io.Writer
+
+	mux    sync.Mutex
 	format string
 }
 
-func (jw jobWriter) Write(b []byte) (n int, err error) {
+func (jw *jobWriter) Write(b []byte) (n int, err error) {
+	jw.mux.Lock()
+	defer jw.mux.Unlock()
+
 	l.job.Print(string(b))
 	return len(b), nil
 }
@@ -58,12 +69,10 @@ func (jw jobWriter) Write(b []byte) (n int, err error) {
 // NewInstance creates a new singleton logging instance.
 func NewInstance(debug bool) {
 	ow = &operationWriter{
-		Writer: os.Stdout,
 		format: logFormat,
 	}
 
 	jw = &jobWriter{
-		Writer: os.Stdout,
 		format: logFormat,
 	}
 

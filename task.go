@@ -126,6 +126,7 @@ func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error
 
 	c := exec.Command(cmd, args...)
 	c.Stdout = logger.JobWriter()
+	c.Stdin = os.Stdin
 	c.Stderr = buf
 	err = c.Start()
 	if err != nil {
@@ -189,6 +190,7 @@ func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error
 func runOperation(o config.Operation, t config.Task, itrChan chan os.Signal, oType string, oNum int) (err error) {
 	logger.Infof("%s: Executing %s #%d\n", t.Name, oType, oNum)
 	c := exec.Command(replacePlaceholders(t, o.Command)[0], replacePlaceholders(t, o.Arguments...)...)
+	c.Stdin = os.Stdin
 	if o.CaptureStdOut {
 		c.Stdout = logger.OperationWriter()
 	}
