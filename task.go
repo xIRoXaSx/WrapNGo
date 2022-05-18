@@ -22,11 +22,12 @@ const (
 )
 
 var (
-	wildcardReg = regexp.QuoteMeta("(") + "(.*)" + regexp.QuoteMeta(")")
-	dateReg     = regexp.MustCompile(fmt.Sprintf("(?i)(%sDate%s)", config.PlaceholderChar, config.PlaceholderChar))
-	mapReg      = regexp.MustCompile("map\\[(.*)]")
-	dynamicReg  = regexp.MustCompile("%Dynamic\\.(.*?)%")
-	dateFuncReg = regexp.MustCompile(
+	wildcardReg      = regexp.QuoteMeta("(") + "(.*)" + regexp.QuoteMeta(")")
+	dateReg          = regexp.MustCompile(fmt.Sprintf("(?i)(%sDate%s)", config.PlaceholderChar, config.PlaceholderChar))
+	mapReg           = regexp.MustCompile("\"(.+?)\":\"(.+?)\"[,}]")
+	dynamicReg       = regexp.MustCompile("%Dynamic\\.(.*?)%")
+	globalDynamicReg = regexp.MustCompile("%GlobalDynamic\\.(.*?)%")
+	dateFuncReg      = regexp.MustCompile(
 		fmt.Sprintf("(?i)(%sDate%s%s)", config.PlaceholderChar, wildcardReg, config.PlaceholderChar),
 	)
 	envFuncReg = regexp.MustCompile(
@@ -36,7 +37,7 @@ var (
 
 // RunTask will execute the given Task.
 // It will start the Pre- and Post-Operations as well as the job.
-func RunTask(t *config.Task) (err error) {
+func RunTask(t *config.Task, globalDynamic map[string]any) (err error) {
 	usrItr := make(chan os.Signal, 1)
 	opItr := make(chan error, 1)
 	signal.Notify(usrItr, syscall.SIGINT, syscall.SIGTERM)
@@ -49,7 +50,7 @@ func RunTask(t *config.Task) (err error) {
 			}
 
 			go func(o config.Operation, num int) {
-				opItr <- runOperation(o, *t, usrItr, jobPreOperation, num)
+				opItr <- runOperation(o, *t, globalDynamic, usrItr, jobPreOperation, num)
 			}(preOp, i+1)
 		}
 	} else {
@@ -58,7 +59,7 @@ func RunTask(t *config.Task) (err error) {
 				continue
 			}
 
-			err = runOperation(preOp, *t, usrItr, jobPreOperation, i+1)
+			err = runOperation(preOp, *t, globalDynamic, usrItr, jobPreOperation, i+1)
 			if err != nil {
 				if preOp.StopIfUnsuccessful {
 					return
@@ -68,7 +69,7 @@ func RunTask(t *config.Task) (err error) {
 	}
 
 	// Run the defined job.
-	err = runJob(t, usrItr, opItr)
+	err = runJob(t, globalDynamic, usrItr, opItr)
 	if err != nil {
 		if t.StopIfUnsuccessful {
 			return
@@ -83,7 +84,7 @@ func RunTask(t *config.Task) (err error) {
 			continue
 		}
 
-		err = runOperation(postOp, *t, usrItr, jobPostOperation, i+1)
+		err = runOperation(postOp, *t, globalDynamic, usrItr, jobPostOperation, i+1)
 		if err != nil && postOp.StopIfUnsuccessful {
 			return
 		}
@@ -92,13 +93,13 @@ func RunTask(t *config.Task) (err error) {
 }
 
 // runJob executes the actual binary action.
-func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error) {
+func runJob(t *config.Task, globalDynamic map[string]any, itrChan chan os.Signal, opItr chan error) (err error) {
 	job := make(chan error)
 	args := make([]string, 1)
-	args[0] = replacePlaceholders(*t, t.Command)[0]
+	args[0] = replacePlaceholders(*t, globalDynamic, t.Command)[0]
 
 	// Compress source if enabled.
-	t.CompressPathToTarBeforeHand = replacePlaceholders(*t, t.CompressPathToTarBeforeHand)[0]
+	t.CompressPathToTarBeforeHand = replacePlaceholders(*t, globalDynamic, t.CompressPathToTarBeforeHand)[0]
 	if t.CompressPathToTarBeforeHand != "" {
 		var path string
 		path, err = compress(t.CompressPathToTarBeforeHand, t.OverwriteCompressed)
@@ -117,7 +118,7 @@ func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error
 		args = append(args, flags...)
 	}
 
-	args = replacePlaceholders(*t, args...)
+	args = replacePlaceholders(*t, globalDynamic, args...)
 	buf := &bytes.Buffer{}
 	cmd := config.Current().GeneralSettings.GlobalCommand
 	if t.Command != "" {
@@ -159,7 +160,7 @@ func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error
 		return
 	}
 
-	t.RemovePathAfterJobCompletes = replacePlaceholders(*t, t.RemovePathAfterJobCompletes)[0]
+	t.RemovePathAfterJobCompletes = replacePlaceholders(*t, globalDynamic, t.RemovePathAfterJobCompletes)[0]
 	select {
 	case <-itrChan:
 		err = c.Process.Kill()
@@ -187,9 +188,9 @@ func runJob(t *config.Task, itrChan chan os.Signal, opItr chan error) (err error
 }
 
 // runOperation runs the given operation and blocks until it has finished.
-func runOperation(o config.Operation, t config.Task, itrChan chan os.Signal, oType string, oNum int) (err error) {
+func runOperation(o config.Operation, t config.Task, globalDynamic map[string]any, itrChan chan os.Signal, oType string, oNum int) (err error) {
 	logger.Infof("%s: Executing %s #%d\n", t.Name, oType, oNum)
-	c := exec.Command(replacePlaceholders(t, o.Command)[0], replacePlaceholders(t, o.Arguments...)...)
+	c := exec.Command(replacePlaceholders(t, globalDynamic, o.Command)[0], replacePlaceholders(t, globalDynamic, o.Arguments...)...)
 	c.Stdin = os.Stdin
 	if o.CaptureStdOut {
 		c.Stdout = logger.OperationWriter()
@@ -232,10 +233,35 @@ func runOperation(o config.Operation, t config.Task, itrChan chan os.Signal, oTy
 }
 
 // replacePlaceholders checks the given strings for placeholders and replaces them accordingly.
-func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
+func replacePlaceholders(t config.Task, globalDynamic map[string]any, values ...string) (replaced []string) {
 	tm := time.Now()
 	dateFormat := config.Current().GeneralSettings.DateFormat
 	fElem := reflect.ValueOf(&t).Elem()
+	if len(values) < 1 {
+		return
+	}
+
+	replaceDynamics := func(regex *regexp.Regexp, mapString, v string) (replaced string) {
+		replaced = v
+		foundMatches := regex.FindAllStringSubmatch(replaced, -1)
+		if len(foundMatches) < 1 {
+			return
+		}
+
+		found := mapReg.FindAllStringSubmatch(mapString, -1)
+		if len(found) > 0 {
+			for _, f := range found {
+				for _, fm := range foundMatches {
+					if strings.ToLower(fm[1]) != strings.ToLower(f[1]) {
+						continue
+					}
+					replaced = strings.Replace(replaced, fm[0], f[2], -1)
+				}
+			}
+		}
+		return
+	}
+
 	var (
 		err      error
 		fieldReg *regexp.Regexp
@@ -275,13 +301,14 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 		// Task dependent placeholders.
 		for i := 0; i < fElem.NumField(); i++ {
 			fName := fElem.Type().Field(i).Name
-			fVal := fmt.Sprintf("%s", fElem.Field(i))
+
 			fieldReg, err = regexp.Compile(fmt.Sprintf("(?i)(%s%s%s)", config.PlaceholderChar, fName, config.PlaceholderChar))
 			if err != nil {
 				continue
 			}
 			found = fieldReg.FindStringSubmatch(v)
 			if len(found) > 0 {
+				fVal := fmt.Sprintf("%s", fElem.Field(i))
 				v = strings.Replace(v, found[1], fVal, -1)
 			}
 			if fName != "Dynamic" {
@@ -289,23 +316,12 @@ func replacePlaceholders(t config.Task, values ...string) (replaced []string) {
 			}
 
 			// Dynamic placeholders.
-			found = mapReg.FindStringSubmatch(fVal)
-			if len(found) > 0 {
-				foundMatches := dynamicReg.FindAllStringSubmatch(v, -1)
-				valMap := escapeSplit(found[1], "\\", ":")
-				for j := 0; j < len(foundMatches); j++ {
-					for m := 0; m < len(valMap); m += 2 {
-						if strings.ToLower(foundMatches[j][1]) != strings.ToLower(valMap[m]) {
-							continue
-						}
-						if m+1 >= len(valMap) {
-							break
-						}
-						v = strings.Replace(v, foundMatches[j][0], valMap[m+1], -1)
-					}
-				}
-			}
+			fVal := fmt.Sprintf("%#v", fElem.Field(i))
+			v = replaceDynamics(dynamicReg, fVal, v)
 		}
+
+		// Dynamic placeholders.
+		v = replaceDynamics(globalDynamicReg, fmt.Sprintf("%#v", globalDynamic), v)
 		replaced = append(replaced, v)
 	}
 	return
@@ -332,7 +348,7 @@ func escapeSplit(value, escapeSeq, separator string) (values []string) {
 	replacedValue := strings.ReplaceAll(value, escapeSeq+separator, token)
 	replaced := omitEmpty(strings.Split(replacedValue, separator))
 	for _, ftToken := range replaced {
-		split := strings.Split(ftToken, " ")
+		split := strings.Split(ftToken, separator)
 		for i := 0; i < len(split); i++ {
 			values = append(values, strings.ReplaceAll(split[i], token, separator))
 		}

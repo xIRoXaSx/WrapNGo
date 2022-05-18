@@ -73,7 +73,7 @@ func main() {
 			logger.Infof("Starting Task \"%s\" in the background.\n", t.Name)
 			go func(t config.Task) {
 				defer wg.Done()
-				err := RunTask(&t)
+				err := RunTask(&t, conf.GlobalDynamic)
 				if err != nil {
 					logger.Error(err)
 					numErr++

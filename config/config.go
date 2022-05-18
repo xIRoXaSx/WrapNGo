@@ -19,6 +19,7 @@ const (
 
 var config = &Config{
 	GeneralSettings: GeneralSettings{},
+	GlobalDynamic:   map[string]any{},
 	Tasks:           []Task{},
 	Mutex:           &sync.Mutex{},
 }
@@ -61,6 +62,7 @@ type Task struct {
 // The Config type contains all the information used inside this project.
 type Config struct {
 	GeneralSettings GeneralSettings `json:"GeneralSettings"`
+	GlobalDynamic   map[string]any  `json:"GlobalDynamic"`
 	Tasks           []Task          `json:"Tasks"`
 	*sync.Mutex
 }
@@ -72,13 +74,16 @@ func defaultConfig() *Config {
 			GlobalCommand: "your-program-to-wrap",
 			DateFormat:    "YYYY-MM-DD_hh-mm-ss",
 		},
+		GlobalDynamic: map[string]any{
+			"Description": "Here you can specify global dynamics to use as placeholders.",
+		},
 		Tasks: []Task{
 			{
 				Name:               "ShortNameOfTask",
 				Command:            "Binary/command",
 				StopIfUnsuccessful: true,
 				Dynamic: map[string]any{
-					"Description": "Define your own placeholders here and use the with %Dynamic.Name%",
+					"Description": "Define your own placeholders here and use the placeholder with %Dynamic.Name%",
 					"Source":      "Some/Source/Path",
 					"Destination": "Some/Destination/Path",
 				},
