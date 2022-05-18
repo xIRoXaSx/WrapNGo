@@ -326,32 +326,3 @@ func replacePlaceholders(t config.Task, globalDynamic map[string]any, values ...
 	}
 	return
 }
-
-// omitEmpty returns a new slice that does not contain empty values.
-func omitEmpty(values []string) (val []string) {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			val = append(val, v)
-		}
-	}
-	return
-}
-
-// escapeSplit will check the value for an escaped sequence before splitting to omit wrong splits.
-// escapeSeq is the string that should prevent the split.
-// separator is the string that is used to split.
-//  Example: escapeSplit("Escaped\\ space, not escaped", "\\", " ")
-//  Will produce []string{"Escaped space,", "not", "escaped"}
-func escapeSplit(value, escapeSeq, separator string) (values []string) {
-	values = make([]string, 0)
-	token := "\x00"
-	replacedValue := strings.ReplaceAll(value, escapeSeq+separator, token)
-	replaced := omitEmpty(strings.Split(replacedValue, separator))
-	for _, ftToken := range replaced {
-		split := strings.Split(ftToken, separator)
-		for i := 0; i < len(split); i++ {
-			values = append(values, strings.ReplaceAll(split[i], token, separator))
-		}
-	}
-	return
-}
