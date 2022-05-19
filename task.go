@@ -4,7 +4,6 @@ import (
 	"WrapNGo/config"
 	"WrapNGo/logger"
 	"WrapNGo/parsing"
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -42,6 +41,19 @@ func RunTask(t *config.Task, globalDynamic map[string]any) (err error) {
 	opItr := make(chan error, 1)
 	signal.Notify(usrItr, syscall.SIGINT, syscall.SIGTERM)
 
+	// Compress source if enabled.
+	t.CompressPathToTarBeforeHand = replacePlaceholders(*t, globalDynamic, t.CompressPathToTarBeforeHand)[0]
+	if t.CompressPathToTarBeforeHand != "" {
+		var path string
+		path, err = compress(t.CompressPathToTarBeforeHand, t.OverwriteCompressed)
+
+		// Only write back if compressing was successful.
+		if err != nil && t.StopIfUnsuccessful {
+			return
+		}
+		t.CompressPathToTarBeforeHand = path
+	}
+
 	// Execute PreOperations if available.
 	if t.AllowParallelOperationsRun {
 		for i, preOp := range t.PreOperations {
@@ -50,7 +62,7 @@ func RunTask(t *config.Task, globalDynamic map[string]any) (err error) {
 			}
 
 			go func(o config.Operation, num int) {
-				opItr <- runOperation(o, *t, globalDynamic, usrItr, jobPreOperation, num)
+				opItr <- runOperation(o, t, globalDynamic, usrItr, jobPreOperation, num)
 			}(preOp, i+1)
 		}
 	} else {
@@ -59,7 +71,7 @@ func RunTask(t *config.Task, globalDynamic map[string]any) (err error) {
 				continue
 			}
 
-			err = runOperation(preOp, *t, globalDynamic, usrItr, jobPreOperation, i+1)
+			err = runOperation(preOp, t, globalDynamic, usrItr, jobPreOperation, i+1)
 			if err != nil {
 				if preOp.StopIfUnsuccessful {
 					return
@@ -84,7 +96,7 @@ func RunTask(t *config.Task, globalDynamic map[string]any) (err error) {
 			continue
 		}
 
-		err = runOperation(postOp, *t, globalDynamic, usrItr, jobPostOperation, i+1)
+		err = runOperation(postOp, t, globalDynamic, usrItr, jobPostOperation, i+1)
 		if err != nil && postOp.StopIfUnsuccessful {
 			return
 		}
@@ -95,40 +107,26 @@ func RunTask(t *config.Task, globalDynamic map[string]any) (err error) {
 // runJob executes the actual binary action.
 func runJob(t *config.Task, globalDynamic map[string]any, itrChan chan os.Signal, opItr chan error) (err error) {
 	job := make(chan error)
-	args := make([]string, 1)
-	args[0] = replacePlaceholders(*t, globalDynamic, t.Command)[0]
-
-	// Compress source if enabled.
-	t.CompressPathToTarBeforeHand = replacePlaceholders(*t, globalDynamic, t.CompressPathToTarBeforeHand)[0]
-	if t.CompressPathToTarBeforeHand != "" {
-		var path string
-		path, err = compress(t.CompressPathToTarBeforeHand, t.OverwriteCompressed)
-
-		// Only write back if compressing was successful.
-		if err != nil && t.StopIfUnsuccessful {
-			return
-		}
-		t.CompressPathToTarBeforeHand = path
+	cmd := config.Current().GeneralSettings.GlobalCommand
+	if t.Command != "" {
+		cmd = t.Command
 	}
+	cmd = replacePlaceholders(*t, globalDynamic, cmd)[0]
 
 	// Since flags can contain spaces, separate them
 	// and append them to the args slice.
+	args := make([]string, 0)
 	for _, f := range t.Arguments {
 		flags := strings.Split(f, " ")
 		args = append(args, flags...)
 	}
 
 	args = replacePlaceholders(*t, globalDynamic, args...)
-	buf := &bytes.Buffer{}
-	cmd := config.Current().GeneralSettings.GlobalCommand
-	if t.Command != "" {
-		cmd = t.Command
-	}
-
-	c := exec.Command(cmd, args...)
+	replacedArgs := strings.Join(replacePlaceholders(*t, globalDynamic, args...), " ")
+	c := exec.Command(cmd, escapeSplit(replacedArgs, "\\", " ")...)
 	c.Stdout = logger.JobWriter()
 	c.Stdin = os.Stdin
-	c.Stderr = buf
+	c.Stderr = os.Stderr
 	err = c.Start()
 	if err != nil {
 		logger.Errorf("%s: %v", t.Name, err)
@@ -180,7 +178,7 @@ func runJob(t *config.Task, globalDynamic map[string]any, itrChan chan os.Signal
 
 	removePath(t.RemovePathAfterJobCompletes)
 	if err != nil {
-		return fmt.Errorf("%s: %v: %s", t.Name, ErrJobFailed, strings.TrimSuffix(buf.String(), "\n"))
+		return fmt.Errorf("%s: %v: %s", t.Name, ErrJobFailed, err)
 	}
 
 	logger.Infof("Job \"%s\" completed successfully", t.Name)
@@ -188,9 +186,24 @@ func runJob(t *config.Task, globalDynamic map[string]any, itrChan chan os.Signal
 }
 
 // runOperation runs the given operation and blocks until it has finished.
-func runOperation(o config.Operation, t config.Task, globalDynamic map[string]any, itrChan chan os.Signal, oType string, oNum int) (err error) {
+func runOperation(o config.Operation, t *config.Task, globalDynamic map[string]any, itrChan chan os.Signal, oType string, oNum int) (err error) {
 	logger.Infof("%s: Executing %s #%d\n", t.Name, oType, oNum)
-	c := exec.Command(replacePlaceholders(t, globalDynamic, o.Command)[0], replacePlaceholders(t, globalDynamic, o.Arguments...)...)
+	cmd := config.Current().GeneralSettings.GlobalCommand
+	if t.Command != "" {
+		cmd = o.Command
+	}
+	cmd = replacePlaceholders(*t, globalDynamic, cmd)[0]
+
+	// Since flags can contain spaces, separate them
+	// and append them to the args slice.
+	args := make([]string, 0)
+	for _, f := range o.Arguments {
+		flags := strings.Split(f, " ")
+		args = append(args, flags...)
+	}
+	args = replacePlaceholders(*t, globalDynamic, args...)
+	replacedArgs := strings.Join(replacePlaceholders(*t, globalDynamic, args...), " ")
+	c := exec.Command(cmd, escapeSplit(replacedArgs, "\\", " ")...)
 	c.Stdin = os.Stdin
 	if o.CaptureStdOut {
 		c.Stdout = logger.OperationWriter()
@@ -323,6 +336,35 @@ func replacePlaceholders(t config.Task, globalDynamic map[string]any, values ...
 		// Dynamic placeholders.
 		v = replaceDynamics(globalDynamicReg, fmt.Sprintf("%#v", globalDynamic), v)
 		replaced = append(replaced, v)
+	}
+	return
+}
+
+// omitEmpty returns a new slice that does not contain empty values.
+func omitEmpty(values []string) (val []string) {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			val = append(val, v)
+		}
+	}
+	return
+}
+
+// escapeSplit will check the value for an escaped sequence before splitting to omit wrong splits.
+// escapeSeq is the string that should prevent the split.
+// separator is the string that is used to split.
+//  Example: escapeSplit("Escaped\\ space, not escaped", "\\", " ")
+//  Will produce []string{"Escaped space,", "not", "escaped"}
+func escapeSplit(value, escapeSeq, separator string) (values []string) {
+	values = make([]string, 0)
+	token := "\x00"
+	replacedValue := strings.ReplaceAll(value, escapeSeq+separator, token)
+	replaced := omitEmpty(strings.Split(replacedValue, separator))
+	for _, ftToken := range replaced {
+		split := strings.Split(ftToken, " ")
+		for i := 0; i < len(split); i++ {
+			values = append(values, strings.ReplaceAll(split[i], token, separator))
+		}
 	}
 	return
 }
