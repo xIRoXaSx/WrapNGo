@@ -24,7 +24,7 @@ func init() {
 	}
 
 	// Load config values.
-	err = config.LoadConfig()
+	err = config.LoadAll()
 	if err != nil {
 		log.Fatal(err)
 		return

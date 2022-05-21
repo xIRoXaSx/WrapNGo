@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -12,7 +13,8 @@ import (
 )
 
 const (
-	fileName        = "config.json"
+	jsonExtension   = ".json"
+	fileName        = "config" + jsonExtension
 	dirName         = "WrapNGo"
 	PlaceholderChar = "%"
 )
@@ -169,21 +171,54 @@ func NewConfig(overwrite bool) (path string, created bool, err error) {
 	return
 }
 
-// LoadConfig loads the local configuration into the config type.
-func LoadConfig() (err error) {
-	fullPath, err := configPath()
+func Load(path string, isMain bool) {
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return
 	}
 
-	b, err := os.ReadFile(fullPath)
-	if err != nil {
+	if isMain {
+		config.Lock()
+		err = json.Unmarshal(b, &config)
+		config.Unlock()
 		return
 	}
 
+	// Only copy the tasks.
+	var conf Config
+	err = json.Unmarshal(b, &conf)
 	config.Lock()
-	err = json.Unmarshal(b, &config)
+	config.Tasks = append(config.Tasks, conf.Tasks...)
 	config.Unlock()
+}
+
+func LoadAll() (err error) {
+	p, err := os.UserConfigDir()
+	if err != nil {
+		return
+	}
+
+	// Config dir to lower case if not Windows machine.
+	dir := configDirPath()
+	p = filepath.Join(p, dir)
+	if err != nil {
+		return
+	}
+
+	err = filepath.Walk(p, func(path string, info fs.FileInfo, err error) (wErr error) {
+		stat, wErr := os.Stat(path)
+		if wErr != nil {
+			return wErr
+		}
+
+		if !stat.IsDir() {
+			name := stat.Name()
+			if strings.HasSuffix(strings.ToLower(name), jsonExtension) {
+				Load(path, name == fileName)
+			}
+		}
+		return
+	})
 	return
 }
 
