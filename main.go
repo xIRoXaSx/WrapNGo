@@ -3,6 +3,7 @@ package main
 import (
 	"WrapNGo/config"
 	"WrapNGo/logger"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -14,19 +15,15 @@ import (
 
 func init() {
 	// Create new config if not already existing.
-	path, created, err := config.NewConfig(false)
-	if err != nil {
-		log.Fatal(err)
-	}
+	created := createConf(false, false)
 	if created {
-		log.Printf("Please modify the created config and restart. Path of config: %s\n", path)
 		os.Exit(0)
 	}
 
 	// Load config values.
-	err = config.LoadAll()
+	err := config.LoadAll()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("%s: %s", ErrInitializing, err)
 		return
 	}
 
@@ -91,16 +88,48 @@ func main() {
 }
 
 func interactive() {
+	const (
+		listTasks   = "List tasks"
+		executeTask = "Execute tasks"
+		createJson  = "Create main json config (config.json)"
+		createYaml  = "Create main yaml config (config.yaml)"
+		regen       = "Regenerate main configs"
+		exit        = "Exit"
+	)
+
 	for {
-		var opt int
-		err := survey.AskOne(&survey.Select{
+		jPath, err := config.FullPath(false)
+		if err != nil {
+			logger.Error(err)
+			continue
+		}
+
+		yPath, err := config.FullPath(true)
+		if err != nil {
+			logger.Error(err)
+			continue
+		}
+
+		opts := []string{
+			listTasks,
+			executeTask,
+		}
+
+		// Append options dynamically.
+		_, err = os.Stat(jPath)
+		if errors.Is(err, os.ErrNotExist) {
+			opts = append(opts, createJson)
+		}
+		_, err = os.Stat(yPath)
+		if errors.Is(err, os.ErrNotExist) {
+			opts = append(opts, createYaml)
+		}
+		opts = append(opts, regen, exit)
+
+		opt := ""
+		err = survey.AskOne(&survey.Select{
 			Message: "Please select an option",
-			Options: []string{
-				"List tasks",
-				"Execute task",
-				"Regenerate default config",
-				"Exit",
-			},
+			Options: opts,
 			Default: 0,
 		}, &opt)
 		if err != nil {
@@ -108,7 +137,7 @@ func interactive() {
 		}
 
 		switch opt {
-		case 0:
+		case listTasks:
 			// List all tasks.
 			cfg := config.Current()
 			tskStr := "tasks are"
@@ -120,7 +149,7 @@ func interactive() {
 			for i := 0; i < len(cfg.Tasks); i++ {
 				logger.Infof("\t> %s: %s", cfg.Tasks[i].Name, cfg.Tasks[i].Command)
 			}
-		case 1:
+		case executeTask:
 			// Execute selected task.
 			ind := 0
 			cfg := config.Current()
@@ -139,32 +168,40 @@ func interactive() {
 
 			os.Args = append(os.Args, cfg.Tasks[ind].Name)
 			main()
-		case 2:
+		case createJson:
+			createConf(false, false)
+		case createYaml:
+			createConf(false, true)
+		case regen:
 			// Regenerate config.
-			var (
-				confirm bool
-				path    string
-			)
+			confirm := false
 			err = survey.AskOne(&survey.Confirm{
-				Message: "Are you sure? This will overwrite your current config!",
+				Message: "Are you sure? This will overwrite your current main configs!",
 			}, &confirm)
 			if err != nil {
 				logger.Fatal(err)
 			}
-
 			if !confirm {
 				continue
 			}
-
-			path, _, err = config.NewConfig(true)
-			if err != nil {
-				logger.Fatalf("could not create new config: %v", err)
-			}
-			logger.Infof("Please modify the created config and restart. Path of config: %s\n", path)
-		case 3:
+			createConf(true, false)
+			createConf(true, true)
+		case exit:
 			// Exit.
 			return
 		}
 		fmt.Println()
 	}
+}
+
+// createConf is a small convenience wrapper to create a new config in the desired format.
+func createConf(overwrite, isYaml bool) (created bool) {
+	path, created, err := config.NewConfig(overwrite, isYaml)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if created {
+		log.Printf("Please modify the created config and restart. Path of config: %s\n", path)
+	}
+	return
 }

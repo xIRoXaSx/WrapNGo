@@ -265,7 +265,7 @@ func replacePlaceholders(t config.Task, globalDynamic map[string]any, values ...
 		if len(found) > 0 {
 			for _, f := range found {
 				for _, fm := range foundMatches {
-					if strings.ToLower(fm[1]) != strings.ToLower(f[1]) {
+					if fm[1] != f[1] {
 						continue
 					}
 					replaced = strings.Replace(replaced, fm[0], f[2], -1)
