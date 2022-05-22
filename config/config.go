@@ -162,7 +162,7 @@ func NewConfig(overwrite, isYaml bool) (path string, created bool, err error) {
 	_, err = os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		defConf := defaultConfig()
-		var b []byte
+		b := make([]byte, 0)
 		if isYaml {
 			b, err = yaml.Marshal(defConf)
 		} else {
@@ -181,7 +181,7 @@ func NewConfig(overwrite, isYaml bool) (path string, created bool, err error) {
 	return
 }
 
-// LoadJson loads the given file to the in memory config.
+// LoadJson loads the given file to the in-memory config.
 func LoadJson(path string, isMain bool) (err error) {
 	var conf Config
 	err = conf.LoadInto(path, false)
@@ -200,7 +200,7 @@ func LoadJson(path string, isMain bool) (err error) {
 	return
 }
 
-// LoadYaml loads the given file to the in memory config.
+// LoadYaml loads the given file to the in-memory config.
 func LoadYaml(path string, isMain bool) (err error) {
 	var conf Config
 	err = conf.LoadInto(path, true)
@@ -219,7 +219,7 @@ func LoadYaml(path string, isMain bool) (err error) {
 	return
 }
 
-// addGlobalDynamics adds all values of m to config if not already set.
+// addGlobalDynamics adds all values of m to config if not already existing.
 // This implementation is not thread-safe.
 func addGlobalDynamics(m map[string]any) {
 	if m == nil {
@@ -264,42 +264,40 @@ func LoadAll() (err error) {
 	// Config dir to lower case if not Windows machine.
 	dir := configDirPath()
 	p = filepath.Join(p, dir)
-	if err != nil {
-		return
-	}
-
 	mainFound := false
 	err = filepath.Walk(p, func(path string, info fs.FileInfo, err error) (wErr error) {
 		stat, wErr := os.Stat(path)
 		if wErr != nil {
-			return wErr
+			return
 		}
 
-		if !stat.IsDir() {
-			name := stat.Name()
+		if stat.IsDir() {
+			return
+		}
 
-			isYaml := strings.HasSuffix(strings.ToLower(name), yamlExtension)
-			isJson := strings.HasSuffix(strings.ToLower(name), jsonExtension)
-			if !isYaml && !isJson {
-				return
-			}
+		name := stat.Name()
+		nameLower := strings.ToLower(name)
+		isYaml := strings.HasSuffix(nameLower, yamlExtension)
+		isJson := strings.HasSuffix(nameLower, jsonExtension)
+		if !isYaml && !isJson {
+			return
+		}
 
-			if isYaml {
-				isMain := name == fileNameYaml
-				if isMain {
-					mainFound = true
-				}
-				wErr = LoadYaml(path, isMain)
-			} else {
-				isMain := name == fileNameJson
-				if isMain {
-					mainFound = true
-				}
-				wErr = LoadJson(path, isMain)
+		if isYaml {
+			isMain := name == fileNameYaml
+			if isMain {
+				mainFound = true
 			}
-			if wErr != nil {
-				return fmt.Errorf("unable to load %s: %v\n", name, wErr)
+			wErr = LoadYaml(path, isMain)
+		} else {
+			isMain := name == fileNameJson
+			if isMain {
+				mainFound = true
 			}
+			wErr = LoadJson(path, isMain)
+		}
+		if wErr != nil {
+			return fmt.Errorf("unable to load %s: %v\n", name, wErr)
 		}
 		return
 	})
