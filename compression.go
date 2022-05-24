@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -22,12 +21,6 @@ func compress(path string, overwrite bool) (output string, err error) {
 		return
 	}
 
-	buf := bytes.Buffer{}
-	err = compressPath(path, &buf)
-	if err != nil {
-		return
-	}
-
 	parent := filepath.Dir(path)
 	dirName := filepath.Base(path)
 	t, err := parsing.ParseDate(tm, "YYYY-MM-DD_hhmmssms")
@@ -35,17 +28,53 @@ func compress(path string, overwrite bool) (output string, err error) {
 		return
 	}
 
-	output = fmt.Sprintf("%s/%s-%s.tar.gz", parent, dirName, t)
-	_, err = os.Stat(output)
-	if err == nil {
-		if !overwrite {
-			return "", errors.New(ErrArchAlreadyExists)
-		} else {
-			err = os.Remove(output)
-			if err != nil {
-				return
+	// In order to use in-memory compression, the dir size should be less than or equal to 1GB.
+	exceeds, err := calcMaxFileSize(path, 1073741824)
+	if err != nil {
+		return
+	}
+
+	// Remove file if already existing and overwrite flag is true.
+	removeOrErr := func() (err error) {
+		_, err = os.Stat(output)
+		if err == nil {
+			if !overwrite {
+				return errors.New(ErrArchAlreadyExists)
+			} else {
+				err = os.Remove(output)
+				if err != nil {
+					return
+				}
 			}
 		}
+		return nil
+	}
+
+	output = filepath.Join(parent, dirName+"-"+t+".tar.gz")
+	if exceeds {
+		err = removeOrErr()
+		if err != nil {
+			return "", err
+		}
+
+		var f *os.File
+		f, err = os.OpenFile(output, os.O_CREATE|os.O_RDWR, 0600)
+		if err != nil {
+			return
+		}
+
+		err = compressPath(path, f)
+		if err != nil {
+			return
+		}
+		return
+	}
+
+	buf := bytes.Buffer{}
+	err = compressPath(path, &buf)
+	err = removeOrErr()
+	if err != nil {
+		return "", err
 	}
 
 	arch, err := os.OpenFile(output, os.O_CREATE|os.O_RDWR, 0600)
@@ -104,4 +133,26 @@ func compressPath(src string, buf io.Writer) (err error) {
 	}
 	err = gzW.Close()
 	return
+}
+
+// calcMaxFileSize calculates the size of the directory.
+// If the size is greater than max (in bytes), it returns false.
+func calcMaxFileSize(path string, max int64) (exceedsMax bool, err error) {
+	var size int64
+	err = filepath.Walk(path, func(_ string, info fs.FileInfo, err error) (wErr error) {
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		if (size / 1024) > max {
+			exceedsMax = true
+			return io.EOF
+		}
+		return
+	})
+	if errors.Is(err, io.EOF) {
+		err = nil
+		return
+	}
+
+	return size > max, err
 }
