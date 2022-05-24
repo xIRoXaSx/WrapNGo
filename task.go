@@ -140,21 +140,23 @@ func runJob(t *config.Task, globalDynamic map[string]any, itrChan chan os.Signal
 	// Anonymous function which tries to remove the given path
 	// 3 times after the job completes.
 	removePath := func(path string) {
-		if path != "" {
-			_, err := os.Stat(path)
-			if err != nil {
-				logger.Error(err)
+		if path == "" {
+			return
+		}
+
+		_, err := os.Stat(path)
+		if err != nil {
+			logger.Error(err)
+			return
+		}
+		for i := 0; i < 3; i++ {
+			time.Sleep(500 * time.Millisecond)
+			err = os.Remove(path)
+			if err == nil {
 				return
 			}
-			for i := 0; i < 3; i++ {
-				time.Sleep(500 * time.Millisecond)
-				err = os.Remove(path)
-				if err == nil {
-					return
-				}
-			}
-			logger.Error(err)
 		}
+		logger.Error(err)
 		return
 	}
 

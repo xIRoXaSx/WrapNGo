@@ -72,7 +72,7 @@ type Config struct {
 	GeneralSettings GeneralSettings `json:"GeneralSettings" yaml:"GeneralSettings"`
 	GlobalDynamic   map[string]any  `json:"GlobalDynamic" yaml:"GlobalDynamic"`
 	Tasks           []Task          `json:"Tasks" yaml:"Tasks"`
-	*sync.Mutex
+	*sync.Mutex     `json:"-" yaml:"-"`
 }
 
 // defaultConfig defines the default configuration.
@@ -95,7 +95,7 @@ func defaultConfig() *Config {
 					"Source":      "Some/Source/Path",
 					"Destination": "Some/Destination/Path",
 				},
-				Arguments: []string{"-P", "--retries 5", "--transfers 3"},
+				Arguments: []string{"--SomeArgument", "--another=Argument", "--Argument 3"},
 				PreOperations: []Operation{
 					{
 						StopIfUnsuccessful:  true,
