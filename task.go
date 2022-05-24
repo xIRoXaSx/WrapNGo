@@ -24,8 +24,10 @@ var (
 	wildcardReg      = regexp.QuoteMeta("(") + "(.*)" + regexp.QuoteMeta(")")
 	dateReg          = regexp.MustCompile(fmt.Sprintf("(?i)(%sDate%s)", config.PlaceholderChar, config.PlaceholderChar))
 	mapReg           = regexp.MustCompile("\"(.+?)\":\"(.+?)\"[,}]")
+	objectReg        = regexp.MustCompile("[{\"\\s](.+?)\"?:\"(.+?)\"[,}]")
 	dynamicReg       = regexp.MustCompile("%Dynamic\\.(.*?)%")
 	globalDynamicReg = regexp.MustCompile("%GlobalDynamic\\.(.*?)%")
+	compressionReg   = regexp.MustCompile("%Compression\\.(.*?)%")
 	dateFuncReg      = regexp.MustCompile(
 		fmt.Sprintf("(?i)(%sDate%s%s)", config.PlaceholderChar, wildcardReg, config.PlaceholderChar),
 	)
@@ -42,16 +44,19 @@ func RunTask(t *config.Task, globalDynamic map[string]any) (err error) {
 	signal.Notify(usrItr, syscall.SIGINT, syscall.SIGTERM)
 
 	// Compress source if enabled.
-	t.CompressPathToTarBeforeHand = replacePlaceholders(*t, globalDynamic, t.CompressPathToTarBeforeHand)[0]
-	if t.CompressPathToTarBeforeHand != "" {
-		var path string
-		path, err = compress(t.CompressPathToTarBeforeHand, t.OverwriteCompressed)
+	if t.Compression != nil {
+		t.Compression.InMemoryCompressionLimit = replacePlaceholders(*t, globalDynamic, t.Compression.InMemoryCompressionLimit)[0]
+		t.Compression.CompressPathToTarBeforeHand = replacePlaceholders(*t, globalDynamic, t.Compression.CompressPathToTarBeforeHand)[0]
+		if t.Compression.CompressPathToTarBeforeHand != "" {
+			var path string
+			path, err = compress(t.Compression)
 
-		// Only write back if compressing was successful.
-		if err != nil && t.StopIfUnsuccessful {
-			return
+			// Only write back if compressing was successful.
+			if err != nil && t.StopIfUnsuccessful {
+				return
+			}
+			t.Compression.CompressPathToTarBeforeHand = path
 		}
-		t.CompressPathToTarBeforeHand = path
 	}
 
 	// Execute PreOperations if available.
@@ -256,14 +261,15 @@ func replacePlaceholders(t config.Task, globalDynamic map[string]any, values ...
 		return
 	}
 
-	replaceDynamics := func(regex *regexp.Regexp, mapString, v string) (replaced string) {
+	replaceDynamics := func(propertyRegex, filterRegex *regexp.Regexp, valueAsString, v string) (replaced string) {
 		replaced = v
-		foundMatches := regex.FindAllStringSubmatch(replaced, -1)
+		foundMatches := propertyRegex.FindAllStringSubmatch(replaced, -1)
 		if len(foundMatches) < 1 {
 			return
 		}
 
-		found := mapReg.FindAllStringSubmatch(mapString, -1)
+		replacedNum := len(foundMatches)
+		found := filterRegex.FindAllStringSubmatch(valueAsString, -1)
 		if len(found) > 0 {
 			for _, f := range found {
 				for _, fm := range foundMatches {
@@ -271,6 +277,10 @@ func replacePlaceholders(t config.Task, globalDynamic map[string]any, values ...
 						continue
 					}
 					replaced = strings.Replace(replaced, fm[0], f[2], -1)
+					replacedNum--
+					if replacedNum == 0 {
+						return
+					}
 				}
 			}
 		}
@@ -332,22 +342,18 @@ func replacePlaceholders(t config.Task, globalDynamic map[string]any, values ...
 
 			// Dynamic placeholders.
 			fVal := fmt.Sprintf("%#v", fElem.Field(i))
-			v = replaceDynamics(dynamicReg, fVal, v)
+			v = replaceDynamics(dynamicReg, mapReg, fVal, v)
 		}
+
+		// Compression placeholders.
+		if v == "%Compression.CompressPathToTarBeforeHand%" {
+			fmt.Println("")
+		}
+		v = replaceDynamics(compressionReg, objectReg, fmt.Sprintf("%#v", t.Compression), v)
 
 		// Dynamic placeholders.
-		v = replaceDynamics(globalDynamicReg, fmt.Sprintf("%#v", globalDynamic), v)
+		v = replaceDynamics(globalDynamicReg, mapReg, fmt.Sprintf("%#v", globalDynamic), v)
 		replaced = append(replaced, v)
-	}
-	return
-}
-
-// omitEmpty returns a new slice that does not contain empty values.
-func omitEmpty(values []string) (val []string) {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			val = append(val, v)
-		}
 	}
 	return
 }
@@ -366,6 +372,16 @@ func escapeSplit(value, escapeSeq, separator string) (values []string) {
 		split := strings.Split(ftToken, " ")
 		for i := 0; i < len(split); i++ {
 			values = append(values, strings.ReplaceAll(split[i], token, separator))
+		}
+	}
+	return
+}
+
+// omitEmpty returns a new slice that does not contain empty values.
+func omitEmpty(values []string) (val []string) {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			val = append(val, v)
 		}
 	}
 	return

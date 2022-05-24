@@ -1,6 +1,8 @@
 package main
 
 import (
+	"WrapNGo/config"
+	"WrapNGo/logger"
 	"WrapNGo/parsing"
 	"archive/tar"
 	"bytes"
@@ -10,35 +12,63 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 )
 
 // compress creates a tar gzip archive
-func compress(path string, overwrite bool) (output string, err error) {
+func compress(opts *config.CompressionOptions) (output string, err error) {
 	tm := time.Now()
-	_, err = os.Stat(path)
+	_, err = os.Stat(opts.CompressPathToTarBeforeHand)
 	if err != nil {
 		return
 	}
 
-	parent := filepath.Dir(path)
-	dirName := filepath.Base(path)
+	parent := filepath.Dir(opts.CompressPathToTarBeforeHand)
+	dirName := filepath.Base(opts.CompressPathToTarBeforeHand)
 	t, err := parsing.ParseDate(tm, "YYYY-MM-DD_hhmmssms")
 	if err != nil {
 		return
 	}
 
-	// In order to use in-memory compression, the dir size should be less than or equal to 1GB.
-	exceeds, err := calcMaxFileSize(path, 1073741824)
-	if err != nil {
-		return
+	// Get the maximum allowed buffer size for in-memory compression.
+	sizeReg := regexp.MustCompile("(\\d*)([bBmMkKgG])")
+	match := sizeReg.FindStringSubmatch(opts.InMemoryCompressionLimit)
+	size := 0
+	if len(match) > 1 {
+		size, err = strconv.Atoi(match[1])
+		if err != nil {
+			logger.Error(err)
+		}
+	}
+
+	// In order to use in-memory compression, the dir size should be greater than or equal to 1 byte.
+	exceeds := false
+	if size > 0 {
+		mp := 1024
+		unit := strings.ToLower(match[2])
+		switch unit {
+		case "k":
+			size = size * mp
+		case "m":
+			size = size * mp * mp
+		case "g":
+			size = size * mp * mp * mp
+		}
+
+		exceeds, err = calcMaxFileSize(opts.CompressPathToTarBeforeHand, int64(size))
+		if err != nil {
+			return
+		}
 	}
 
 	// Remove file if already existing and overwrite flag is true.
 	removeOrErr := func() (err error) {
 		_, err = os.Stat(output)
 		if err == nil {
-			if !overwrite {
+			if !opts.OverwriteCompressed {
 				return errors.New(ErrArchAlreadyExists)
 			} else {
 				err = os.Remove(output)
@@ -63,7 +93,7 @@ func compress(path string, overwrite bool) (output string, err error) {
 			return
 		}
 
-		err = compressPath(path, f)
+		err = compressPath(opts.CompressPathToTarBeforeHand, opts.RetainStructure, f)
 		if err != nil {
 			return
 		}
@@ -71,7 +101,7 @@ func compress(path string, overwrite bool) (output string, err error) {
 	}
 
 	buf := bytes.Buffer{}
-	err = compressPath(path, &buf)
+	err = compressPath(opts.CompressPathToTarBeforeHand, opts.RetainStructure, &buf)
 	err = removeOrErr()
 	if err != nil {
 		return "", err
@@ -88,7 +118,7 @@ func compress(path string, overwrite bool) (output string, err error) {
 }
 
 // compressPath creates a tar gzip file of the given source.
-func compressPath(src string, buf io.Writer) (err error) {
+func compressPath(src string, retainStructure bool, buf io.Writer) (err error) {
 	gzW := gzip.NewWriter(buf)
 	tarW := tar.NewWriter(gzW)
 	err = filepath.Walk(src, func(path string, info fs.FileInfo, err error) (wErr error) {
@@ -98,7 +128,11 @@ func compressPath(src string, buf io.Writer) (err error) {
 			return
 		}
 
-		h.Name = filepath.ToSlash(path)
+		if retainStructure {
+			h.Name = filepath.ToSlash(path)
+		} else {
+			h.Name = filepath.Base(path)
+		}
 		wErr = tarW.WriteHeader(h)
 		if wErr != nil {
 			return
