@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -10,11 +11,16 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
 	jsonExtension   = ".json"
-	fileName        = "config" + jsonExtension
+	yamlExtension   = ".yaml"
+	fileBaseName    = "config"
+	fileNameJson    = fileBaseName + jsonExtension
+	fileNameYaml    = fileBaseName + yamlExtension
 	dirName         = "WrapNGo"
 	PlaceholderChar = "%"
 )
@@ -27,46 +33,46 @@ var config = &Config{
 }
 
 type GeneralSettings struct {
-	GlobalCommand         string `json:"GlobalCommand"`
-	Debug                 bool   `json:"Debug"`
-	CaseSensitiveJobNames bool   `json:"CaseSensitiveJobNames"`
-	DateFormat            string `json:"DateFormat"`
+	GlobalCommand         string `json:"GlobalCommand" yaml:"GlobalCommand"`
+	Debug                 bool   `json:"Debug" yaml:"Debug"`
+	CaseSensitiveJobNames bool   `json:"CaseSensitiveJobNames" yaml:"CaseSensitiveJobNames"`
+	DateFormat            string `json:"DateFormat" yaml:"DateFormat"`
 }
 
 // The Operation type contains information for a single Task operation.
 // Each Task can contain up to 2 Tasks (Pre- and Post-operation).
 type Operation struct {
-	Enabled             bool     `json:"Enabled"`
-	StopIfUnsuccessful  bool     `json:"StopIfUnsuccessful"`
-	SecondsUntilTimeout int      `json:"SecondsUntilTimeout"`
-	IgnoreTimeout       bool     `json:"IgnoreTimeout"`
-	CaptureStdOut       bool     `json:"CaptureStdOut"`
-	Command             string   `json:"Command"`
-	Arguments           []string `json:"Arguments"`
+	Enabled             bool     `json:"Enabled" yaml:"Enabled"`
+	StopIfUnsuccessful  bool     `json:"StopIfUnsuccessful" yaml:"StopIfUnsuccessful"`
+	SecondsUntilTimeout int      `json:"SecondsUntilTimeout" yaml:"SecondsUntilTimeout"`
+	IgnoreTimeout       bool     `json:"IgnoreTimeout" yaml:"IgnoreTimeout"`
+	CaptureStdOut       bool     `json:"CaptureStdOut" yaml:"CaptureStdOut"`
+	Command             string   `json:"Command" yaml:"Command"`
+	Arguments           []string `json:"Arguments" yaml:"Arguments"`
 }
 
 // The Task type contains information for a single job.
 // The Config contains n Tasks.
 type Task struct {
-	Name                        string         `json:"Name"`
-	Command                     string         `json:"Command"`
-	Dynamic                     map[string]any `json:"Dynamic"`
-	Arguments                   []string       `json:"Arguments"`
-	StopIfUnsuccessful          bool           `json:"StopIfUnsuccessful"`
-	CompressPathToTarBeforeHand string         `json:"CompressPathToTarBeforeHand"`
-	OverwriteCompressed         bool           `json:"OverwriteCompressed"`
-	RemovePathAfterJobCompletes string         `json:"RemovePathAfterJobCompletes"`
-	AllowParallelOperationsRun  bool           `json:"AllowParallelOperationsRun"`
-	PreOperations               []Operation    `json:"PreOperations"`
-	PostOperations              []Operation    `json:"PostOperations"`
+	Name                        string         `json:"Name" yaml:"Name"`
+	Command                     string         `json:"Command" yaml:"Command"`
+	Dynamic                     map[string]any `json:"Dynamic" yaml:"Dynamic"`
+	Arguments                   []string       `json:"Arguments" yaml:"Arguments"`
+	StopIfUnsuccessful          bool           `json:"StopIfUnsuccessful" yaml:"StopIfUnsuccessful"`
+	CompressPathToTarBeforeHand string         `json:"CompressPathToTarBeforeHand" yaml:"CompressPathToTarBeforeHand"`
+	OverwriteCompressed         bool           `json:"OverwriteCompressed" yaml:"OverwriteCompressed"`
+	RemovePathAfterJobCompletes string         `json:"RemovePathAfterJobCompletes" yaml:"RemovePathAfterJobCompletes"`
+	AllowParallelOperationsRun  bool           `json:"AllowParallelOperationsRun" yaml:"AllowParallelOperationsRun"`
+	PreOperations               []Operation    `json:"PreOperations" yaml:"PreOperations"`
+	PostOperations              []Operation    `json:"PostOperations" yaml:"PostOperations"`
 }
 
 // The Config type contains all the information used inside this project.
 type Config struct {
-	GeneralSettings GeneralSettings `json:"GeneralSettings"`
-	GlobalDynamic   map[string]any  `json:"GlobalDynamic"`
-	Tasks           []Task          `json:"Tasks"`
-	*sync.Mutex
+	GeneralSettings GeneralSettings `json:"GeneralSettings" yaml:"GeneralSettings"`
+	GlobalDynamic   map[string]any  `json:"GlobalDynamic" yaml:"GlobalDynamic"`
+	Tasks           []Task          `json:"Tasks" yaml:"Tasks"`
+	*sync.Mutex     `json:"-" yaml:"-"`
 }
 
 // defaultConfig defines the default configuration.
@@ -89,7 +95,7 @@ func defaultConfig() *Config {
 					"Source":      "Some/Source/Path",
 					"Destination": "Some/Destination/Path",
 				},
-				Arguments: []string{"-P", "--retries 5", "--transfers 3"},
+				Arguments: []string{"--SomeArgument", "--another=Argument", "--Argument 3"},
 				PreOperations: []Operation{
 					{
 						StopIfUnsuccessful:  true,
@@ -126,8 +132,8 @@ func defaultConfig() *Config {
 }
 
 // NewConfig creates a new config.
-func NewConfig(overwrite bool) (path string, created bool, err error) {
-	path, err = configPath()
+func NewConfig(overwrite, isYaml bool) (path string, created bool, err error) {
+	path, err = FullPath(isYaml)
 	if err != nil {
 		return
 	}
@@ -156,8 +162,12 @@ func NewConfig(overwrite bool) (path string, created bool, err error) {
 	_, err = os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		defConf := defaultConfig()
-		var b []byte
-		b, err = json.MarshalIndent(defConf, "", "\t")
+		b := make([]byte, 0)
+		if isYaml {
+			b, err = yaml.Marshal(defConf)
+		} else {
+			b, err = json.MarshalIndent(defConf, "", "\t")
+		}
 		if err != nil {
 			return
 		}
@@ -171,25 +181,78 @@ func NewConfig(overwrite bool) (path string, created bool, err error) {
 	return
 }
 
-func Load(path string, isMain bool) {
-	b, err := os.ReadFile(path)
+// LoadJson loads the given file to the in-memory config.
+func LoadJson(path string, isMain bool) (err error) {
+	var conf Config
+	err = conf.LoadInto(path, false)
 	if err != nil {
 		return
 	}
 
+	config.Lock()
+	defer config.Unlock()
+
+	config.Tasks = append(config.Tasks, conf.Tasks...)
+	addGlobalDynamics(conf.GlobalDynamic)
 	if isMain {
-		config.Lock()
-		err = json.Unmarshal(b, &config)
-		config.Unlock()
+		config.GeneralSettings = conf.GeneralSettings
+	}
+	return
+}
+
+// LoadYaml loads the given file to the in-memory config.
+func LoadYaml(path string, isMain bool) (err error) {
+	var conf Config
+	err = conf.LoadInto(path, true)
+	if err != nil {
 		return
 	}
 
-	// Only copy the tasks.
-	var conf Config
-	err = json.Unmarshal(b, &conf)
 	config.Lock()
+	defer config.Unlock()
+
 	config.Tasks = append(config.Tasks, conf.Tasks...)
-	config.Unlock()
+	addGlobalDynamics(conf.GlobalDynamic)
+	if isMain {
+		config.GeneralSettings = conf.GeneralSettings
+	}
+	return
+}
+
+// addGlobalDynamics adds all values of m to config if not already existing.
+// This implementation is not thread-safe.
+func addGlobalDynamics(m map[string]any) {
+	if m == nil {
+		return
+	}
+
+	for k, v := range m {
+		_, ok := config.GlobalDynamic[k]
+		if ok {
+			log.Printf("GlobalDynamic '%s' has already been set, skipping\n", k)
+			continue
+		}
+		config.GlobalDynamic[k] = v
+	}
+}
+
+func (c *Config) LoadInto(path string, isYaml bool) (err error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	if c.Mutex == nil {
+		c.Mutex = &sync.Mutex{}
+	}
+	c.Lock()
+	defer c.Unlock()
+
+	if isYaml {
+		err = yaml.Unmarshal(b, &c)
+		return
+	}
+	err = json.Unmarshal(b, &c)
+	return
 }
 
 func LoadAll() (err error) {
@@ -201,29 +264,55 @@ func LoadAll() (err error) {
 	// Config dir to lower case if not Windows machine.
 	dir := configDirPath()
 	p = filepath.Join(p, dir)
+	mainFound := false
+	err = filepath.Walk(p, func(path string, info fs.FileInfo, err error) (wErr error) {
+		stat, wErr := os.Stat(path)
+		if wErr != nil {
+			return
+		}
+
+		if stat.IsDir() {
+			return
+		}
+
+		name := stat.Name()
+		nameLower := strings.ToLower(name)
+		isYaml := strings.HasSuffix(nameLower, yamlExtension)
+		isJson := strings.HasSuffix(nameLower, jsonExtension)
+		if !isYaml && !isJson {
+			return
+		}
+
+		if isYaml {
+			isMain := name == fileNameYaml
+			if isMain {
+				mainFound = true
+			}
+			wErr = LoadYaml(path, isMain)
+		} else {
+			isMain := name == fileNameJson
+			if isMain {
+				mainFound = true
+			}
+			wErr = LoadJson(path, isMain)
+		}
+		if wErr != nil {
+			return fmt.Errorf("unable to load %s: %v\n", name, wErr)
+		}
+		return
+	})
 	if err != nil {
 		return
 	}
 
-	err = filepath.Walk(p, func(path string, info fs.FileInfo, err error) (wErr error) {
-		stat, wErr := os.Stat(path)
-		if wErr != nil {
-			return wErr
-		}
-
-		if !stat.IsDir() {
-			name := stat.Name()
-			if strings.HasSuffix(strings.ToLower(name), jsonExtension) {
-				Load(path, name == fileName)
-			}
-		}
-		return
-	})
+	if !mainFound {
+		log.Println("main config could not be found, please ensure 'config.json' / 'config.yaml' is available")
+	}
 	return
 }
 
-// configPath returns the full path of the configuration file.
-func configPath() (p string, err error) {
+// FullPath returns the full path of the configuration file.
+func FullPath(isYaml bool) (p string, err error) {
 	p, err = os.UserConfigDir()
 	if err != nil {
 		return
@@ -231,7 +320,11 @@ func configPath() (p string, err error) {
 
 	// Config dir to lower case if not Windows machine.
 	dir := configDirPath()
-	p = filepath.Join(p, dir, fileName)
+	if isYaml {
+		p = filepath.Join(p, dir, fileNameYaml)
+		return
+	}
+	p = filepath.Join(p, dir, fileNameJson)
 	return
 }
 

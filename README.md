@@ -50,7 +50,9 @@ Task
 ```
 
 Down below, you can find the default config which will be generated after starting the executable the first time.  
-Afterwards you can find the configuration inside your local config folder:
+If you feel more comfortable using YAML instead, you can start the program again (without any arguments) and select 
+`Create main yaml config (config.yaml)` in the interactive menu.  
+Afterwards you can open either of the configurations inside your local config folder:
 
 | Operating System | Path of the configuration                                      | Shorthand                                         |
 |------------------|----------------------------------------------------------------|---------------------------------------------------|
@@ -70,6 +72,7 @@ The following table explains what each property inside the config does:
 | GeneralSettings.Debug                 | If set to `true`, more information will be printed to have a much simpler debugging experience                    |
 | GeneralSettings.CaseSensitiveJobNames | If set to `true`, tasks will only be executed if the given argument matches the case sensitive task name          |
 | GeneralSettings.DateFormat            | The general date and time format for the `%Date%` placeholder                                                     |
+| GlobalDynamic                         | Same as `Tasks.Dynamic` but can be accessed by every task, operation and configuration file.                      |
 | Tasks.Name                            | The name of the task. Used for calling each task (`./WrapNGo <TaskName>`)                                         |
 | Tasks.Command                         | The job's command, script or executable path to use                                                               |
 | Tasks.Dynamic                         | This section allows you to create your own variables to use as placeholders to organize your commands             |
@@ -88,8 +91,50 @@ The following table explains what each property inside the config does:
 | Tasks.Operations.Arguments            | Same functionality as `Tasks.Arguments`                                                                           |
 
 ### Notice
+When using multiple configurations, only the `GeneralSettings` of the main file (`config.json` / `config.yaml`) will be applied.  
+
 `Tasks.CompressPathToTarBeforeHand`: If you want to use this feature to compress any directory / file and want to retrieve the name of the archive,
-simply use the [placeholder](#placeholders) `%CompressPathToTarBeforeHand%`.
+simply use the [placeholder](#placeholders) `%CompressPathToTarBeforeHand%`.  
+
+`GlobalDynamic`: When using this property across multiple configurations, every unique property will be added to the collection.  
+You can use them across every config.
+
+### Multiple configuration files
+If you like to split the configuration into individual files (to separate them into logical collections for instance), you can create
+multiple configurations (yaml or json) inside your local config folder (check table down below).
+As an example, we want to separate all "startup" tasks from the "background" tasks:
+
+#### startup.json
+```json
+{
+  "Tasks": [
+    {
+      "Name": "StartupTask1",
+      "Command": "SomeCommandToStart"
+    },
+    {
+      "Name": "StartupTask2",
+      "Command": "SomeOtherCommandToStart"
+    } 
+  ]
+}
+```
+
+#### background.json
+```json
+{
+  "Tasks": [
+    {
+      "Name": "BackgroundTask1",
+      "Command": "SomeCommandForTheBackground"
+    },
+    {
+      "Name": "BackgroundTask2",
+      "Command": "SomeOtherCommandForTheBackground"
+    } 
+  ]
+}
+```
 
 ***
 
@@ -152,6 +197,7 @@ Formats are **case-sensitive**!
 
 
 ### Default configuration
+#### JSON format
 ```json
 {
   "GeneralSettings": {
@@ -160,19 +206,22 @@ Formats are **case-sensitive**!
     "CaseSensitiveJobNames": false,
     "DateFormat": "YYYY-MM-DD_hh-mm-ss"
   },
+  "GlobalDynamic": {
+    "Description": "Here you can specify global dynamics to use as placeholders."
+  },
   "Tasks": [
     {
       "Name": "ShortNameOfTask",
       "Command": "Binary/command",
       "Dynamic": {
-        "Description": "Define your own placeholders here and use the with %Dynamic.Name%",
+        "Description": "Define your own placeholders here and use the placeholder with %Dynamic.Name%",
         "Destination": "Some/Destination/Path",
         "Source": "Some/Source/Path"
       },
       "Arguments": [
-        "-P",
-        "--retries 5",
-        "--transfers 3"
+        "--SomeArgument",
+        "--another=Argument",
+        "--Argument 3"
       ],
       "StopIfUnsuccessful": true,
       "CompressPathToTarBeforeHand": "",
@@ -216,6 +265,60 @@ Formats are **case-sensitive**!
     }
   ]
 }
+```
+
+#### YAML format
+```yaml
+GeneralSettings:
+  GlobalCommand: your-program-to-wrap
+  Debug: false
+  CaseSensitiveJobNames: false
+  DateFormat: YYYY-MM-DD_hh-mm-ss
+GlobalDynamic:
+  Description: Here you can specify global dynamics to use as placeholders.
+Tasks:
+  - Name: ShortNameOfTask
+    Command: Binary/command
+    Dynamic:
+      Description: Define your own placeholders here and use the placeholder with
+        %Dynamic.Name%
+      Destination: Some/Destination/Path
+      Source: Some/Source/Path
+    Arguments:
+      - --SomeArgument
+      - --another=Argument
+      - --Argument 3
+    StopIfUnsuccessful: true
+    CompressPathToTarBeforeHand: ""
+    OverwriteCompressed: false
+    RemovePathAfterJobCompletes: ""
+    AllowParallelOperationsRun: false
+    PreOperations:
+      - Enabled: false
+        StopIfUnsuccessful: true
+        SecondsUntilTimeout: 3
+        IgnoreTimeout: false
+        CaptureStdOut: true
+        Command: Call-Another-Program-Or-Script-Before-Main-Program-Ran
+        Arguments:
+          - 'Description: Arguments can be used inside your called script / application.'
+          - 'StartedAt: %Date%'
+          - 'Command: %Command%'
+          - 'Source: %Dynamic.Source%'
+          - 'Destination: %Dynamic.Destination%'
+    PostOperations:
+      - Enabled: false
+        StopIfUnsuccessful: true
+        SecondsUntilTimeout: 3
+        IgnoreTimeout: false
+        CaptureStdOut: true
+        Command: Call-Another-Program-Or-Script-After-Main-Program-Ran
+        Arguments:
+          - 'Description: Arguments can be used inside your called script / application.'
+          - 'StartedAt: %Date%'
+          - 'Command: %Command%'
+          - 'Source: %Dynamic.Source%'
+          - 'Destination: %Dynamic.Destination%'
 ```
 
 ***

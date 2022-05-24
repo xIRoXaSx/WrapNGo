@@ -2,7 +2,10 @@ module WrapNGo
 
 go 1.18
 
-require github.com/AlecAivazis/survey/v2 v2.3.4
+require (
+	github.com/AlecAivazis/survey/v2 v2.3.4
+	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
+)
 
 require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
