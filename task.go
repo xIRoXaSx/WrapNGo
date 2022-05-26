@@ -346,9 +346,6 @@ func replacePlaceholders(t config.Task, globalDynamic map[string]any, values ...
 		}
 
 		// Compression placeholders.
-		if v == "%Compression.CompressPathToTarBeforeHand%" {
-			fmt.Println("")
-		}
 		v = replaceDynamics(compressionReg, objectReg, fmt.Sprintf("%#v", t.Compression), v)
 
 		// Dynamic placeholders.

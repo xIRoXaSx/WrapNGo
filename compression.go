@@ -44,7 +44,7 @@ func compress(opts *config.CompressionOptions) (output string, err error) {
 		}
 	}
 
-	// In order to use in-memory compression, the dir size should be greater than or equal to 1 byte.
+	// In order to use in-memory compression, the dir / file size should be greater than or equal to 1 byte.
 	exceeds := false
 	if size > 0 {
 		mp := 1024
@@ -170,7 +170,7 @@ func compressPath(src string, retainStructure bool, buf io.Writer) (err error) {
 }
 
 // calcMaxFileSize calculates the size of the directory.
-// If the size is greater than max (in bytes), it returns false.
+// If the size is greater than max (in bytes), it returns true.
 func calcMaxFileSize(path string, max int64) (exceedsMax bool, err error) {
 	var size int64
 	err = filepath.Walk(path, func(_ string, info fs.FileInfo, err error) (wErr error) {
@@ -178,7 +178,6 @@ func calcMaxFileSize(path string, max int64) (exceedsMax bool, err error) {
 			size += info.Size()
 		}
 		if (size / 1024) > max {
-			exceedsMax = true
 			return io.EOF
 		}
 		return
@@ -187,6 +186,5 @@ func calcMaxFileSize(path string, max int64) (exceedsMax bool, err error) {
 		err = nil
 		return
 	}
-
 	return size > max, err
 }
