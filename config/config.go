@@ -51,20 +51,26 @@ type Operation struct {
 	Arguments           []string `json:"Arguments" yaml:"Arguments"`
 }
 
+type CompressionOptions struct {
+	CompressPathToTarBeforeHand string `json:"CompressPathToTarBeforeHand" yaml:"CompressPathToTarBeforeHand"`
+	InMemoryCompressionLimit    string `json:"InMemoryCompressionLimit" yaml:"InMemoryCompressionLimit"`
+	OverwriteCompressed         bool   `json:"OverwriteCompressed" yaml:"OverwriteCompressed"`
+	RetainStructure             bool   `json:"RetainStructure" yaml:"RetainStructure"`
+}
+
 // The Task type contains information for a single job.
 // The Config contains n Tasks.
 type Task struct {
-	Name                        string         `json:"Name" yaml:"Name"`
-	Command                     string         `json:"Command" yaml:"Command"`
-	Dynamic                     map[string]any `json:"Dynamic" yaml:"Dynamic"`
-	Arguments                   []string       `json:"Arguments" yaml:"Arguments"`
-	StopIfUnsuccessful          bool           `json:"StopIfUnsuccessful" yaml:"StopIfUnsuccessful"`
-	CompressPathToTarBeforeHand string         `json:"CompressPathToTarBeforeHand" yaml:"CompressPathToTarBeforeHand"`
-	OverwriteCompressed         bool           `json:"OverwriteCompressed" yaml:"OverwriteCompressed"`
-	RemovePathAfterJobCompletes string         `json:"RemovePathAfterJobCompletes" yaml:"RemovePathAfterJobCompletes"`
-	AllowParallelOperationsRun  bool           `json:"AllowParallelOperationsRun" yaml:"AllowParallelOperationsRun"`
-	PreOperations               []Operation    `json:"PreOperations" yaml:"PreOperations"`
-	PostOperations              []Operation    `json:"PostOperations" yaml:"PostOperations"`
+	Name                        string              `json:"Name" yaml:"Name"`
+	Command                     string              `json:"Command" yaml:"Command"`
+	Dynamic                     map[string]any      `json:"Dynamic" yaml:"Dynamic"`
+	Arguments                   []string            `json:"Arguments" yaml:"Arguments"`
+	StopIfUnsuccessful          bool                `json:"StopIfUnsuccessful" yaml:"StopIfUnsuccessful"`
+	RemovePathAfterJobCompletes string              `json:"RemovePathAfterJobCompletes" yaml:"RemovePathAfterJobCompletes"`
+	AllowParallelOperationsRun  bool                `json:"AllowParallelOperationsRun" yaml:"AllowParallelOperationsRun"`
+	Compression                 *CompressionOptions `json:"Compression" yaml:"Compression"`
+	PreOperations               []Operation         `json:"PreOperations" yaml:"PreOperations"`
+	PostOperations              []Operation         `json:"PostOperations" yaml:"PostOperations"`
 }
 
 // The Config type contains all the information used inside this project.
@@ -96,6 +102,11 @@ func defaultConfig() *Config {
 					"Destination": "Some/Destination/Path",
 				},
 				Arguments: []string{"--SomeArgument", "--another=Argument", "--Argument 3"},
+				Compression: &CompressionOptions{
+					CompressPathToTarBeforeHand: "",
+					OverwriteCompressed:         false,
+					InMemoryCompressionLimit:    "1GB",
+				},
 				PreOperations: []Operation{
 					{
 						StopIfUnsuccessful:  true,
