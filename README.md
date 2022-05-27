@@ -66,44 +66,45 @@ For Windows users: The described path assumes that your Windows drive is `C:`. C
 ### Explanation
 The following table explains what each property inside the config does:
 
-| Property name                                 | Description                                                                                                                            |
-|-----------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| GeneralSettings.GlobalCommand                 | This is the binary / program path which will be used as a fallback (whenever the Task's command is unset / empty)                      |
-| GeneralSettings.Debug                         | If set to `true`, more information will be printed to have a much simpler debugging experience                                         |
-| GeneralSettings.CaseSensitiveJobNames         | If set to `true`, tasks will only be executed if the given argument matches the case sensitive task name                               |
-| GeneralSettings.DateFormat                    | The general date and time format for the `%Date%` placeholder                                                                          |
-| GlobalDynamic                                 | Same as `Tasks.Dynamic` but can be accessed by every task, operation and configuration file.                                           |
-| Tasks.Name                                    | The name of the task. Used for calling each task (`./WrapNGo <TaskName>`)                                                              |
-| Tasks.Command                                 | The job's command, script or executable path to use                                                                                    |
-| Tasks.Dynamic                                 | This section allows you to create your own variables to use as placeholders to organize your commands                                  |
-| Tasks.Arguments                               | These are the arguments to use with the provided `Command` property                                                                    |
-| Tasks.StopIfUnsuccessful                      | Whether to stop the execution of all parallelized `PreOperations` and `PostOperations` if the job fails                                |
-| Tasks.Compression.CompressPathToTarBeforeHand | If set, the given path will be compressed into a *.tar.gz file with the current date before the job starts                             |
-| Tasks.Compression.InMemoryCompressionLimit    | The maximum allowed file / dir size in order to use in-memory compression. If size is larger, compression will append to archive file. |
-| Tasks.Compression.OverwriteCompressed         | Whether the compressed content of `CompressPathToTarBeforeHand` should be overwritten or not                                           |
-| Tasks.Compression.RetainStructure             | Whether the compressed archive will keep the original path inside the archive or just its content.                                     |
-| Tasks.RemovePathAfterJobCompletes             | If set, the given path will be removed after the job completes                                                                         |
-| Tasks.AllowParallelOperationsRun              | Whether the `PreOperations` should run in parallel (job won't wait for all `PreOperations` to finish)                                  |
-| Tasks.Operations.Enabled                      | Whether the corresponding `PreOperation` / `PostOperation` should be activated                                                         |
-| Tasks.Operations.StopIfUnsuccessful           | Whether the corresponding `PreOperation` / `PostOperation` should cause the task to fail (= exit code 1) on error                      |
-| Tasks.Operations.SecondsUntilTimeout          | The amount of seconds after which the `PreOperation` / `PostOperation` should be considered as failed                                  |
-| Tasks.Operations.IgnoreTimeout                | Whether the configured timeout (`Tasks.Operations.SecondsUntilTimeout`) should be ignored / disabled                                   |
-| Tasks.Operations.CaptureStdOut                | Whether the output of the `PreOperation` / `PostOperation` process should be logged to the console                                     |
-| Tasks.Operations.Command                      | Same functionality as `Tasks.Command`                                                                                                  |
-| Tasks.Operations.Arguments                    | Same functionality as `Tasks.Arguments`                                                                                                |
+| Property name                              | Description                                                                                                                           |
+|--------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| GeneralSettings.GlobalCommand              | This is the binary / program path which will be used as a fallback (whenever the Task's command is unset / empty)                     |
+| GeneralSettings.Debug                      | If set to `true`, more information will be printed to have a much simpler debugging experience                                        |
+| GeneralSettings.CaseSensitiveJobNames      | If set to `true`, tasks will only be executed if the given argument matches the case sensitive task name                              |
+| GeneralSettings.DateFormat                 | The general date and time format for the `%Date%` placeholder                                                                         |
+| GlobalDynamic                              | Same as `Tasks.Dynamic` but can be accessed by every task, operation and configuration file.                                          |
+| Tasks.Name                                 | The name of the task. Used for calling each task (`./WrapNGo <TaskName>`)                                                             |
+| Tasks.Command                              | The job's command, script or executable path to use                                                                                   |
+| Tasks.Dynamic                              | This section allows you to create your own variables to use as placeholders to organize your commands                                 |
+| Tasks.Arguments                            | These are the arguments to use with the provided `Command` property                                                                   |
+| Tasks.StopIfUnsuccessful                   | Whether to stop the execution of all parallelized `PreOperations` and `PostOperations` if the job fails                               |
+| Tasks.Compression.PathToCompress           | If set, the given path will be compressed into a *.tar.gz file before the job starts                                                  |
+| Tasks.Compression.CompressionOutPath       | If set, the compressed archive will be placed into the given path. If empty the parent directory of the source will be used instead   |
+| Tasks.Compression.InMemoryCompressionLimit | The maximum allowed file / dir size in order to use in-memory compression. If size is larger, compression will append to archive file |
+| Tasks.Compression.OverwriteCompressed      | Whether the compressed content of `PathToCompress` should be overwritten or not                                                       |
+| Tasks.Compression.RetainStructure          | Whether the compressed archive will keep the original path inside the archive or just its content                                     |
+| Tasks.RemovePathAfterJobCompletes          | If set, the given path will be removed after the job completes                                                                        |
+| Tasks.AllowParallelOperationsRun           | Whether the `PreOperations` should run in parallel (job won't wait for all `PreOperations` to finish)                                 |
+| Tasks.Operations.Enabled                   | Whether the corresponding `PreOperation` / `PostOperation` should be activated                                                        |
+| Tasks.Operations.StopIfUnsuccessful        | Whether the corresponding `PreOperation` / `PostOperation` should cause the task to fail (= exit code 1) on error                     |
+| Tasks.Operations.SecondsUntilTimeout       | The amount of seconds after which the `PreOperation` / `PostOperation` should be considered as failed                                 |
+| Tasks.Operations.IgnoreTimeout             | Whether the configured timeout (`Tasks.Operations.SecondsUntilTimeout`) should be ignored / disabled                                  |
+| Tasks.Operations.CaptureStdOut             | Whether the output of the `PreOperation` / `PostOperation` process should be logged to the console                                    |
+| Tasks.Operations.Command                   | Same functionality as `Tasks.Command`                                                                                                 |
+| Tasks.Operations.Arguments                 | Same functionality as `Tasks.Arguments`                                                                                               |
 
 ### Notice
 When using multiple configurations, only the `GeneralSettings` of the main file (`config.json` / `config.yaml`) will be applied.  
 
-`Tasks.Compression.CompressPathToTarBeforeHand`: If you want to use this feature to compress any directory / file and want to retrieve the name of the archive,
-simply use the [placeholder](#placeholders) `%CompressPathToTarBeforeHand%`.  
+`Tasks.Compression.PathToCompress`: If you want to use this feature to compress any directory / file and want to retrieve the name of the archive,
+simply use the [placeholder](#placeholders) `%PathToCompress%`.  
 
 `Tasks.Compression.InMemoryCompressionLimit`: You can use any available number (must fit into the current available RAM) via `B` (byte), `KB`, `MB` or `GB`.  
 Decimal places are not allowed, use the smaller unit instead!   
 E.g.: `InMemoryCompressionLimit: 512MB`, `InMemoryCompressionLimit: 1GB`, ...  
 
 `Tasks.Compression.RetainStructure`: If you set `RetainStructure` to true the output archive will keep the path to the source file.  
-E.g.: `CompressPathToTarBeforeHand: /path/to/file/to/compress` will also include the `/path/to/file/to` directory structure.
+E.g.: `PathToCompress: /path/to/file/to/compress` will also include the `/path/to/file/to` directory structure.
 
 `GlobalDynamic`: When using this property across multiple configurations, every unique property will be added to the collection.  
 You can use them across every config.
@@ -155,11 +156,11 @@ An example for such placeholders in a simplified version of a task:
 {
   "Command": "mv",
   "Arguments": [
-    "%Compression.CompressPathToTarBeforeHand%",
+    "%Compression.PathToCompress%",
     "%Dynamic.Destination%"
   ],
   "Compression": {
-    "CompressPathToTarBeforeHand": "Some/Path/To/Compress",
+    "PathToCompress": "Some/Path/To/Compress",
     "InMemoryCompressionLimit": "1GB"
   }
 }
@@ -179,7 +180,7 @@ There are a few additional placeholders / placeholder functions as well:
 Inside each of the following properties placeholders can be used:
 - `Command`
 - `Arguments`
-- `CompressPathToTarBeforeHand`
+- `PathToCompress`
 - `InMemoryCompressionLimit`
 - `RemovePathAfterJobCompletes`
 
@@ -241,7 +242,8 @@ Formats are **case-sensitive**!
       "RemovePathAfterJobCompletes": "",
       "AllowParallelOperationsRun": false,
       "Compression": {
-        "CompressPathToTarBeforeHand": "",
+        "PathToCompress": "",
+        "CompressionOutPath": "",
         "InMemoryCompressionLimit": "1GB",
         "OverwriteCompressed": false,
         "RetainStructure": false
@@ -309,7 +311,8 @@ Tasks:
     RemovePathAfterJobCompletes: ""
     AllowParallelOperationsRun: false
     Compression:
-      CompressPathToTarBeforeHand: ""
+      PathToCompress: ""
+      CompressionOutPath: ""
       InMemoryCompressionLimit: 1GB
       OverwriteCompressed: false
       RetainStructure: false
