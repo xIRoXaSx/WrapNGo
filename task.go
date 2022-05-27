@@ -24,7 +24,7 @@ var (
 	wildcardReg      = regexp.QuoteMeta("(") + "(.*)" + regexp.QuoteMeta(")")
 	dateReg          = regexp.MustCompile(fmt.Sprintf("(?i)(%sDate%s)", config.PlaceholderChar, config.PlaceholderChar))
 	mapReg           = regexp.MustCompile("\"(.+?)\":\"(.+?)\"[,}]")
-	objectReg        = regexp.MustCompile("[{\"\\s](.+?)\"?:\"(.+?)\"[,}]")
+	objectReg        = regexp.MustCompile("[{\"\\s](.+?)\"?:\"(.*?)\"[,}]")
 	dynamicReg       = regexp.MustCompile("%Dynamic\\.(.*?)%")
 	globalDynamicReg = regexp.MustCompile("%GlobalDynamic\\.(.*?)%")
 	compressionReg   = regexp.MustCompile("%Compression\\.(.*?)%")
@@ -38,25 +38,23 @@ var (
 
 // RunTask will execute the given Task.
 // It will start the Pre- and Post-Operations as well as the job.
-func RunTask(t *config.Task, globalDynamic map[string]any) (err error) {
+func RunTask(t config.Task, globalDynamic map[string]any) (err error) {
 	usrItr := make(chan os.Signal, 1)
 	opItr := make(chan error, 1)
 	signal.Notify(usrItr, syscall.SIGINT, syscall.SIGTERM)
 
 	// Compress source if enabled.
-	if t.Compression != nil {
-		t.Compression.InMemoryCompressionLimit = replacePlaceholders(*t, globalDynamic, t.Compression.InMemoryCompressionLimit)[0]
-		t.Compression.CompressPathToTarBeforeHand = replacePlaceholders(*t, globalDynamic, t.Compression.CompressPathToTarBeforeHand)[0]
-		if t.Compression.CompressPathToTarBeforeHand != "" {
-			var path string
-			path, err = compress(t.Compression)
+	t.Compression.InMemoryCompressionLimit = replacePlaceholders(t, globalDynamic, t.Compression.InMemoryCompressionLimit)[0]
+	t.Compression.PathToCompress = replacePlaceholders(t, globalDynamic, t.Compression.PathToCompress)[0]
+	if t.Compression.PathToCompress != "" {
+		var path string
+		path, err = compress(t.Compression)
 
-			// Only write back if compressing was successful.
-			if err != nil && t.StopIfUnsuccessful {
-				return
-			}
-			t.Compression.CompressPathToTarBeforeHand = path
+		// Only write back if compressing was successful.
+		if err != nil && t.StopIfUnsuccessful {
+			return
 		}
+		t.Compression.PathToCompress = path
 	}
 
 	// Execute PreOperations if available.
@@ -110,13 +108,13 @@ func RunTask(t *config.Task, globalDynamic map[string]any) (err error) {
 }
 
 // runJob executes the actual binary action.
-func runJob(t *config.Task, globalDynamic map[string]any, itrChan chan os.Signal, opItr chan error) (err error) {
+func runJob(t config.Task, globalDynamic map[string]any, itrChan chan os.Signal, opItr chan error) (err error) {
 	job := make(chan error)
 	cmd := config.Current().GeneralSettings.GlobalCommand
 	if t.Command != "" {
 		cmd = t.Command
 	}
-	cmd = replacePlaceholders(*t, globalDynamic, cmd)[0]
+	cmd = replacePlaceholders(t, globalDynamic, cmd)[0]
 
 	// Since flags can contain spaces, separate them
 	// and append them to the args slice.
@@ -126,8 +124,8 @@ func runJob(t *config.Task, globalDynamic map[string]any, itrChan chan os.Signal
 		args = append(args, flags...)
 	}
 
-	args = replacePlaceholders(*t, globalDynamic, args...)
-	replacedArgs := strings.Join(replacePlaceholders(*t, globalDynamic, args...), " ")
+	args = replacePlaceholders(t, globalDynamic, args...)
+	replacedArgs := strings.Join(replacePlaceholders(t, globalDynamic, args...), " ")
 	c := exec.Command(cmd, escapeSplit(replacedArgs, "\\", " ")...)
 	c.Stdout = logger.JobWriter()
 	c.Stdin = os.Stdin
@@ -165,7 +163,7 @@ func runJob(t *config.Task, globalDynamic map[string]any, itrChan chan os.Signal
 		return
 	}
 
-	t.RemovePathAfterJobCompletes = replacePlaceholders(*t, globalDynamic, t.RemovePathAfterJobCompletes)[0]
+	t.RemovePathAfterJobCompletes = replacePlaceholders(t, globalDynamic, t.RemovePathAfterJobCompletes)[0]
 	select {
 	case <-itrChan:
 		err = c.Process.Kill()
@@ -193,13 +191,13 @@ func runJob(t *config.Task, globalDynamic map[string]any, itrChan chan os.Signal
 }
 
 // runOperation runs the given operation and blocks until it has finished.
-func runOperation(o config.Operation, t *config.Task, globalDynamic map[string]any, itrChan chan os.Signal, oType string, oNum int) (err error) {
+func runOperation(o config.Operation, t config.Task, globalDynamic map[string]any, itrChan chan os.Signal, oType string, oNum int) (err error) {
 	logger.Infof("%s: Executing %s #%d\n", t.Name, oType, oNum)
 	cmd := config.Current().GeneralSettings.GlobalCommand
 	if t.Command != "" {
 		cmd = o.Command
 	}
-	cmd = replacePlaceholders(*t, globalDynamic, cmd)[0]
+	cmd = replacePlaceholders(t, globalDynamic, cmd)[0]
 
 	// Since flags can contain spaces, separate them
 	// and append them to the args slice.
@@ -208,8 +206,8 @@ func runOperation(o config.Operation, t *config.Task, globalDynamic map[string]a
 		flags := strings.Split(f, " ")
 		args = append(args, flags...)
 	}
-	args = replacePlaceholders(*t, globalDynamic, args...)
-	replacedArgs := strings.Join(replacePlaceholders(*t, globalDynamic, args...), " ")
+	args = replacePlaceholders(t, globalDynamic, args...)
+	replacedArgs := strings.Join(replacePlaceholders(t, globalDynamic, args...), " ")
 	c := exec.Command(cmd, escapeSplit(replacedArgs, "\\", " ")...)
 	c.Stdin = os.Stdin
 	if o.CaptureStdOut {

@@ -19,15 +19,15 @@ import (
 )
 
 // compress creates a tar gzip archive
-func compress(opts *config.CompressionOptions) (output string, err error) {
+func compress(opts config.CompressionOptions) (output string, err error) {
 	tm := time.Now()
-	_, err = os.Stat(opts.CompressPathToTarBeforeHand)
+	_, err = os.Stat(opts.PathToCompress)
 	if err != nil {
 		return
 	}
 
-	parent := filepath.Dir(opts.CompressPathToTarBeforeHand)
-	dirName := filepath.Base(opts.CompressPathToTarBeforeHand)
+	parent := filepath.Dir(opts.PathToCompress)
+	dirName := filepath.Base(opts.PathToCompress)
 	t, err := parsing.ParseDate(tm, "YYYY-MM-DD_hhmmssms")
 	if err != nil {
 		return
@@ -58,7 +58,7 @@ func compress(opts *config.CompressionOptions) (output string, err error) {
 			size = size * mp * mp * mp
 		}
 
-		exceeds, err = calcMaxFileSize(opts.CompressPathToTarBeforeHand, int64(size))
+		exceeds, err = calcMaxFileSize(opts.PathToCompress, int64(size))
 		if err != nil {
 			return
 		}
@@ -80,7 +80,11 @@ func compress(opts *config.CompressionOptions) (output string, err error) {
 		return nil
 	}
 
-	output = filepath.Join(parent, dirName+"-"+t+".tar.gz")
+	output = opts.OutputPath
+	if output == "" {
+		output = filepath.Join(parent, dirName+"-"+t+".tar.gz")
+	}
+
 	if exceeds {
 		err = removeOrErr()
 		if err != nil {
@@ -93,7 +97,7 @@ func compress(opts *config.CompressionOptions) (output string, err error) {
 			return
 		}
 
-		err = compressPath(opts.CompressPathToTarBeforeHand, opts.RetainStructure, f)
+		err = compressPath(opts.PathToCompress, opts.RetainStructure, f)
 		if err != nil {
 			return
 		}
@@ -101,7 +105,7 @@ func compress(opts *config.CompressionOptions) (output string, err error) {
 	}
 
 	buf := bytes.Buffer{}
-	err = compressPath(opts.CompressPathToTarBeforeHand, opts.RetainStructure, &buf)
+	err = compressPath(opts.PathToCompress, opts.RetainStructure, &buf)
 	err = removeOrErr()
 	if err != nil {
 		return "", err

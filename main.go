@@ -70,7 +70,7 @@ func main() {
 			logger.Infof("Starting Task \"%s\" in the background.\n", t.Name)
 			go func(t config.Task) {
 				defer wg.Done()
-				err := RunTask(&t, conf.GlobalDynamic)
+				err := RunTask(t, conf.GlobalDynamic)
 				if err != nil {
 					logger.Error(err)
 					numErr++
@@ -97,6 +97,7 @@ func interactive() {
 		exit        = "Exit"
 	)
 
+	conf := config.Current()
 	for {
 		jPath, err := config.FullPath(false)
 		if err != nil {
@@ -139,23 +140,21 @@ func interactive() {
 		switch opt {
 		case listTasks:
 			// List all tasks.
-			cfg := config.Current()
 			tskStr := "tasks are"
-			if len(cfg.Tasks) == 1 {
+			if len(conf.Tasks) == 1 {
 				tskStr = "task is"
 			}
 
-			logger.Infof("Currently %d %s stored:\n", len(cfg.Tasks), tskStr)
-			for i := 0; i < len(cfg.Tasks); i++ {
-				logger.Infof("\t> %s: %s", cfg.Tasks[i].Name, cfg.Tasks[i].Command)
+			logger.Infof("Currently %d %s stored:\n", len(conf.Tasks), tskStr)
+			for i := 0; i < len(conf.Tasks); i++ {
+				logger.Infof("\t> %s: %s", conf.Tasks[i].Name, conf.Tasks[i].Command)
 			}
 		case executeTask:
 			// Execute selected task.
 			ind := 0
-			cfg := config.Current()
-			tasks := make([]string, len(cfg.Tasks))
-			for i := 0; i < len(cfg.Tasks); i++ {
-				tasks[i] = cfg.Tasks[i].Name
+			tasks := make([]string, len(conf.Tasks))
+			for i := 0; i < len(conf.Tasks); i++ {
+				tasks[i] = conf.Tasks[i].Name
 			}
 
 			err = survey.AskOne(&survey.Select{
@@ -166,7 +165,7 @@ func interactive() {
 				logger.Fatal(err)
 			}
 
-			os.Args = append(os.Args, cfg.Tasks[ind].Name)
+			os.Args = []string{os.Args[0], conf.Tasks[ind].Name}
 			main()
 		case createJson:
 			createConf(false, false)
