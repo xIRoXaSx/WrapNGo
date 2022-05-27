@@ -79,7 +79,7 @@ The following table explains what each property inside the config does:
 | Tasks.Arguments                            | These are the arguments to use with the provided `Command` property                                                                   |
 | Tasks.StopIfUnsuccessful                   | Whether to stop the execution of all parallelized `PreOperations` and `PostOperations` if the job fails                               |
 | Tasks.Compression.PathToCompress           | If set, the given path will be compressed into a *.tar.gz file before the job starts                                                  |
-| Tasks.Compression.CompressionOutPath       | If set, the compressed archive will be placed into the given path. If empty the parent directory of the source will be used instead   |
+| Tasks.Compression.OutputPath               | If set, the compressed archive will be placed into the given path. If empty the parent directory of the source will be used instead   |
 | Tasks.Compression.InMemoryCompressionLimit | The maximum allowed file / dir size in order to use in-memory compression. If size is larger, compression will append to archive file |
 | Tasks.Compression.OverwriteCompressed      | Whether the compressed content of `PathToCompress` should be overwritten or not                                                       |
 | Tasks.Compression.RetainStructure          | Whether the compressed archive will keep the original path inside the archive or just its content                                     |
@@ -243,7 +243,7 @@ Formats are **case-sensitive**!
       "AllowParallelOperationsRun": false,
       "Compression": {
         "PathToCompress": "",
-        "CompressionOutPath": "",
+        "OutputPath": "",
         "InMemoryCompressionLimit": "1GB",
         "OverwriteCompressed": false,
         "RetainStructure": false
@@ -312,7 +312,7 @@ Tasks:
     AllowParallelOperationsRun: false
     Compression:
       PathToCompress: ""
-      CompressionOutPath: ""
+      OutputPath: ""
       InMemoryCompressionLimit: 1GB
       OverwriteCompressed: false
       RetainStructure: false

@@ -80,7 +80,7 @@ func compress(opts config.CompressionOptions) (output string, err error) {
 		return nil
 	}
 
-	output = opts.CompressionOutPath
+	output = opts.OutputPath
 	if output == "" {
 		output = filepath.Join(parent, dirName+"-"+t+".tar.gz")
 	}

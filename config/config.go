@@ -53,7 +53,7 @@ type Operation struct {
 
 type CompressionOptions struct {
 	PathToCompress           string `json:"PathToCompress" yaml:"PathToCompress"`
-	CompressionOutPath       string `json:"CompressionOutPath" yaml:"CompressionOutPath"`
+	OutputPath               string `json:"OutputPath" yaml:"OutputPath"`
 	InMemoryCompressionLimit string `json:"InMemoryCompressionLimit" yaml:"InMemoryCompressionLimit"`
 	OverwriteCompressed      bool   `json:"OverwriteCompressed" yaml:"OverwriteCompressed"`
 	RetainStructure          bool   `json:"RetainStructure" yaml:"RetainStructure"`
@@ -105,7 +105,7 @@ func defaultConfig() *Config {
 				Arguments: []string{"--SomeArgument", "--another=Argument", "--Argument 3"},
 				Compression: CompressionOptions{
 					PathToCompress:           "",
-					CompressionOutPath:       "",
+					OutputPath:               "",
 					OverwriteCompressed:      false,
 					InMemoryCompressionLimit: "1GB",
 				},
